@@ -9,7 +9,7 @@ export class P2PNode {
     this.coordinatorUrl = coordinatorUrl;
     this.mlkem = new MLKEM();
     this.aesCrypto = new AESCrypto();
-    this.keyPair = this.mlkem.generateKeyPair();
+    this.keyPair = null; // Will be generated async
     this.peerKeys = new Map(); // nodeId -> shared secret
     this.chats = new Map(); // chatId -> chat info
     this.messageHandlers = new Map();
@@ -23,6 +23,11 @@ export class P2PNode {
   }
 
   async connect() {
+    // Generate genuine ML-KEM-768 keypair first
+    console.log('Generating ML-KEM-768 keypair...');
+    this.keyPair = await this.mlkem.generateKeyPair();
+    console.log('✓ Post-quantum cryptographic keys generated');
+    
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(this.coordinatorUrl);
 
@@ -114,7 +119,7 @@ export class P2PNode {
         break;
 
       case 'key_exchange_request':
-        this.handleKeyExchangeRequest(message);
+        this.handleKeyExchangeRequest(message).catch(console.error);
         break;
 
       case 'key_exchange_response':
@@ -137,17 +142,17 @@ export class P2PNode {
   handleNodeList(nodes) {
     console.log(`Discovered ${nodes.length} nodes`);
     
-    nodes.forEach(node => {
+    nodes.forEach(async node => {
       if (!this.peerKeys.has(node.nodeId)) {
-        this.initiateKeyExchange(node);
+        await this.initiateKeyExchange(node);
       }
     });
     
     if (this.cliInterface) this.cliInterface.rl.prompt();
   }
 
-  initiateKeyExchange(peerNode) {
-    const { ciphertext, sharedSecret } = this.mlkem.encapsulate(peerNode.publicKey);
+  async initiateKeyExchange(peerNode) {
+    const { ciphertext, sharedSecret } = await this.mlkem.encapsulate(peerNode.publicKey);
     this.peerKeys.set(peerNode.nodeId, sharedSecret);
 
     this.send({
@@ -159,8 +164,8 @@ export class P2PNode {
     });
   }
 
-  handleKeyExchangeRequest(message) {
-    const sharedSecret = this.mlkem.decapsulate(message.ciphertext, this.keyPair.privateKey);
+  async handleKeyExchangeRequest(message) {
+    const sharedSecret = await this.mlkem.decapsulate(message.ciphertext, this.keyPair.privateKey);
     this.peerKeys.set(message.fromNodeId, sharedSecret);
     
     this.send({
@@ -182,7 +187,7 @@ export class P2PNode {
         this.handleKeyExchangeRequest({
           fromNodeId: message.fromNodeId,
           ciphertext: message.ciphertext
-        });
+        }).catch(console.error);
         break;
       case 'key_exchange_response':
         this.handleKeyExchangeResponse({

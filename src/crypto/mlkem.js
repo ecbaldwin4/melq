@@ -1,52 +1,35 @@
-import crypto from 'crypto';
+import { MlKem768 } from 'mlkem';
 
 export class MLKEM {
   constructor() {
-    this.keySize = 32; // 256 bits
+    this.mlkem = new MlKem768(); // Using ML-KEM-768 (192-bit security)
   }
 
-  generateKeyPair() {
-    const privateKey = crypto.randomBytes(this.keySize);
-    const publicKey = crypto.createHash('sha256').update(privateKey).digest();
+  async generateKeyPair() {
+    const [publicKey, privateKey] = await this.mlkem.generateKeyPair();
     
     return {
-      publicKey: publicKey.toString('base64'),
-      privateKey: privateKey.toString('base64')
+      publicKey: Buffer.from(publicKey).toString('base64'),
+      privateKey: Buffer.from(privateKey).toString('base64')
     };
   }
 
-  encapsulate(publicKeyBase64) {
-    const publicKey = Buffer.from(publicKeyBase64, 'base64');
-    const ephemeralKey = crypto.randomBytes(this.keySize);
-    
-    // Create ciphertext from ephemeral key
-    const ciphertext = crypto.createHash('sha256')
-      .update(Buffer.concat([ephemeralKey, publicKey]))
-      .digest();
-    
-    // Derive shared secret deterministically 
-    const sharedSecret = crypto.createHash('sha256')
-      .update(Buffer.concat([ephemeralKey, publicKey]))
-      .digest();
+  async encapsulate(publicKeyBase64) {
+    const publicKey = new Uint8Array(Buffer.from(publicKeyBase64, 'base64'));
+    const [ciphertext, sharedSecret] = await this.mlkem.encap(publicKey);
     
     return {
-      ciphertext: ephemeralKey.toString('base64'), // Send the ephemeral key as "ciphertext"
-      sharedSecret: sharedSecret.toString('base64')
+      ciphertext: Buffer.from(ciphertext).toString('base64'),
+      sharedSecret: Buffer.from(sharedSecret).toString('base64')
     };
   }
 
-  decapsulate(ciphertextBase64, privateKeyBase64) {
-    const privateKey = Buffer.from(privateKeyBase64, 'base64');
-    const ephemeralKey = Buffer.from(ciphertextBase64, 'base64'); // The "ciphertext" is actually the ephemeral key
+  async decapsulate(ciphertextBase64, privateKeyBase64) {
+    const ciphertext = new Uint8Array(Buffer.from(ciphertextBase64, 'base64'));
+    const privateKey = new Uint8Array(Buffer.from(privateKeyBase64, 'base64'));
     
-    // Derive public key from private key
-    const publicKey = crypto.createHash('sha256').update(privateKey).digest();
+    const sharedSecret = await this.mlkem.decap(ciphertext, privateKey);
     
-    // Derive the same shared secret as encapsulate
-    const sharedSecret = crypto.createHash('sha256')
-      .update(Buffer.concat([ephemeralKey, publicKey]))
-      .digest();
-    
-    return sharedSecret.toString('base64');
+    return Buffer.from(sharedSecret).toString('base64');
   }
 }
