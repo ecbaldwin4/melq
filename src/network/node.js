@@ -14,6 +14,8 @@ export class P2PNode {
     this.chats = new Map(); // chatId -> chat info
     this.messageHandlers = new Map();
     this.ws = null;
+    this.cliInterface = null;
+    this.heartbeatInterval = null;
   }
 
   generateNodeId() {
@@ -27,6 +29,7 @@ export class P2PNode {
       this.ws.on('open', () => {
         console.log(`Connected to coordinator as ${this.nodeId}`);
         this.register();
+        this.startHeartbeat();
         resolve();
       });
 
@@ -39,12 +42,15 @@ export class P2PNode {
         }
       });
 
-      this.ws.on('close', () => {
-        console.log('Disconnected from coordinator');
+      this.ws.on('close', (code, reason) => {
+        console.log(`Disconnected from coordinator (code: ${code}, reason: ${reason})`);
+        this.stopHeartbeat();
+        if (this.cliInterface) this.cliInterface.rl.prompt();
       });
 
       this.ws.on('error', (error) => {
         console.error('Connection error:', error);
+        if (this.cliInterface) this.cliInterface.rl.prompt();
         reject(error);
       });
     });
@@ -69,6 +75,8 @@ export class P2PNode {
     switch (message.type) {
       case 'registered':
         console.log(`Registered successfully as ${message.nodeId}`);
+        this.getChats();
+        if (this.cliInterface) this.cliInterface.rl.prompt();
         break;
 
       case 'node_list':
@@ -82,6 +90,17 @@ export class P2PNode {
           name: message.chatName,
           participants: [this.nodeId]
         });
+        if (this.cliInterface) this.cliInterface.rl.prompt();
+        break;
+
+      case 'chat_available':
+        console.log(`New chat available: ${message.chatName}`);
+        this.chats.set(message.chatId, {
+          id: message.chatId,
+          name: message.chatName,
+          participants: [message.creator]
+        });
+        if (this.cliInterface) this.cliInterface.rl.prompt();
         break;
 
       case 'user_joined':
@@ -101,6 +120,17 @@ export class P2PNode {
       case 'key_exchange_response':
         this.handleKeyExchangeResponse(message);
         break;
+
+      case 'chat_list':
+        this.handleChatList(message.chats);
+        break;
+
+      case 'pong':
+        // Heartbeat response - no action needed
+        break;
+
+      default:
+        console.log(`Unknown message type: ${message.type}`, message);
     }
   }
 
@@ -112,6 +142,8 @@ export class P2PNode {
         this.initiateKeyExchange(node);
       }
     });
+    
+    if (this.cliInterface) this.cliInterface.rl.prompt();
   }
 
   initiateKeyExchange(peerNode) {
@@ -142,6 +174,31 @@ export class P2PNode {
 
   handleKeyExchangeResponse(message) {
     console.log(`Key exchange completed with ${message.fromNodeId}`);
+  }
+
+  handleRelayedMessage(message) {
+    switch (message.messageType) {
+      case 'key_exchange_request':
+        this.handleKeyExchangeRequest({
+          fromNodeId: message.fromNodeId,
+          ciphertext: message.ciphertext
+        });
+        break;
+      case 'key_exchange_response':
+        this.handleKeyExchangeResponse({
+          fromNodeId: message.fromNodeId,
+          acknowledged: message.acknowledged
+        });
+        break;
+      default:
+        if (message.encryptedData) {
+          this.handleEncryptedMessage({
+            fromNodeId: message.fromNodeId,
+            chatId: message.chatId,
+            encryptedData: message.encryptedData
+          });
+        }
+    }
   }
 
   async sendMessage(chatId, messageText, targetNodeId) {
@@ -181,6 +238,7 @@ export class P2PNode {
       const sharedSecret = this.peerKeys.get(message.fromNodeId);
       const decryptionKey = this.aesCrypto.deriveKeyFromSharedSecret(sharedSecret);
       
+      
       const decryptedText = this.aesCrypto.decrypt(message.encryptedData, decryptionKey);
       const messageData = JSON.parse(decryptedText);
 
@@ -219,7 +277,42 @@ export class P2PNode {
     });
   }
 
+  getChats() {
+    this.send({
+      type: 'get_chats',
+      nodeId: this.nodeId
+    });
+  }
+
+  handleChatList(chats) {
+    chats.forEach(chat => {
+      if (!this.chats.has(chat.chatId)) {
+        this.chats.set(chat.chatId, {
+          id: chat.chatId,
+          name: chat.chatName,
+          participants: chat.participants
+        });
+      }
+    });
+  }
+
+  startHeartbeat() {
+    this.heartbeatInterval = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.send({ type: 'ping', nodeId: this.nodeId });
+      }
+    }, 30000); // Send ping every 30 seconds
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
   disconnect() {
+    this.stopHeartbeat();
     if (this.ws) {
       this.ws.close();
     }

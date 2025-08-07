@@ -4,6 +4,7 @@ import chalk from 'chalk';
 export class CLIInterface {
   constructor(node) {
     this.node = node;
+    this.node.cliInterface = this; // Set reference for prompt restoration
     this.currentPath = '/';
     this.currentChat = null;
     this.messages = new Map(); // chatId -> messages[]
@@ -134,14 +135,24 @@ export class CLIInterface {
       this.currentPath = '/';
       this.currentChat = null;
     } else {
-      const chat = Array.from(this.node.chats.values()).find(c => c.name === path);
+      // Remove trailing slash if present
+      const cleanPath = path.replace(/\/$/, '');
+      const chat = Array.from(this.node.chats.values()).find(c => c.name === cleanPath);
       if (chat) {
-        this.currentPath = `/${path}`;
+        this.currentPath = `/${cleanPath}`;
         this.currentChat = chat;
-        console.log(chalk.green(`Entered chat: ${path}`));
+        console.log(chalk.green(`Entered chat: ${cleanPath}`));
         this.showChatHistory();
       } else {
         console.log(chalk.red(`Chat not found: ${path}`));
+        console.log(chalk.gray('Available chats:'));
+        if (this.node.chats.size === 0) {
+          console.log(chalk.gray('  (no chats available)'));
+        } else {
+          for (const [chatId, chat] of this.node.chats.entries()) {
+            console.log(chalk.cyan(`  ${chat.name}/`));
+          }
+        }
       }
     }
 
@@ -154,7 +165,16 @@ export class CLIInterface {
       return;
     }
 
+    // Check if chat already exists
+    const existingChat = Array.from(this.node.chats.values()).find(c => c.name === chatName);
+    if (existingChat) {
+      console.log(chalk.yellow(`Joining existing chat: ${chatName}`));
+      this.node.joinChat(existingChat.id);
+      return;
+    }
+
     console.log(chalk.yellow(`Creating chat: ${chatName}`));
+    console.log(chalk.gray(`Available chats before creation: ${Array.from(this.node.chats.values()).map(c => c.name).join(', ')}`));
     this.node.createChat(chatName);
   }
 

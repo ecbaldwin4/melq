@@ -14,7 +14,7 @@ program
     console.log(chalk.blue('Starting MELQ P2P Chat...'));
     
     try {
-      const coordinatorUrl = options.coordinator.replace('http://', 'ws://').replace('https://', 'wss://');
+      let coordinatorUrl = options.coordinator.replace('http://', 'ws://').replace('https://', 'wss://');
       if (!coordinatorUrl.endsWith('/ws')) {
         coordinatorUrl += '/ws';
       }

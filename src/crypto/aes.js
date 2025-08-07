@@ -13,7 +13,7 @@ export class AESCrypto {
 
   encrypt(plaintext, key) {
     const iv = crypto.randomBytes(this.ivLength);
-    const cipher = crypto.createCipher(this.algorithm, key, { iv });
+    const cipher = crypto.createCipheriv(this.algorithm, key, iv);
     cipher.setAAD(Buffer.from('melq-chat', 'utf8'));
     
     let encrypted = cipher.update(plaintext, 'utf8', 'base64');
@@ -31,9 +31,7 @@ export class AESCrypto {
   decrypt(encryptedData, key) {
     const { encrypted, iv, authTag } = encryptedData;
     
-    const decipher = crypto.createDecipher(this.algorithm, key, { 
-      iv: Buffer.from(iv, 'base64') 
-    });
+    const decipher = crypto.createDecipheriv(this.algorithm, key, Buffer.from(iv, 'base64'));
     decipher.setAAD(Buffer.from('melq-chat', 'utf8'));
     decipher.setAuthTag(Buffer.from(authTag, 'base64'));
     

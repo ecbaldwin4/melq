@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import { WebSocketServer } from 'ws';
+import { Command } from 'commander';
 
 const fastify = Fastify({ logger: true });
 
@@ -56,6 +57,16 @@ fastify.register(async function (fastify) {
         ws.send(JSON.stringify({ type: 'node_list', nodes: nodeList }));
         break;
 
+      case 'get_chats':
+        const availableChats = Array.from(chatRooms.entries()).map(([chatId, chat]) => ({
+          chatId,
+          chatName: chat.name,
+          creator: chat.creator,
+          participants: chat.participants
+        }));
+        ws.send(JSON.stringify({ type: 'chat_list', chats: availableChats }));
+        break;
+
       case 'create_chat':
         const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         chatRooms.set(chatId, {
@@ -64,7 +75,15 @@ fastify.register(async function (fastify) {
           participants: [message.nodeId],
           created: Date.now()
         });
+        // Send to creator
         ws.send(JSON.stringify({ type: 'chat_created', chatId, chatName: message.chatName }));
+        // Broadcast to all other nodes
+        broadcastToAllNodes({ 
+          type: 'chat_available', 
+          chatId, 
+          chatName: message.chatName, 
+          creator: message.nodeId 
+        }, message.nodeId);
         break;
 
       case 'join_chat':
@@ -81,6 +100,10 @@ fastify.register(async function (fastify) {
 
       case 'relay_message':
         relayEncryptedMessage(message);
+        break;
+
+      case 'ping':
+        ws.send(JSON.stringify({ type: 'pong' }));
         break;
     }
   }
@@ -106,16 +129,35 @@ fastify.register(async function (fastify) {
     });
   }
 
+  function broadcastToAllNodes(message, excludeNodeId = null) {
+    nodes.forEach((node, nodeId) => {
+      if (nodeId !== excludeNodeId && node.socket.readyState === 1) {
+        node.socket.send(JSON.stringify(message));
+      }
+    });
+  }
+
   function relayEncryptedMessage(message) {
     const targetNode = nodes.get(message.targetNodeId);
     if (targetNode && targetNode.socket.readyState === 1) {
-      targetNode.socket.send(JSON.stringify({
-        type: 'encrypted_message',
-        fromNodeId: message.fromNodeId,
-        chatId: message.chatId,
-        encryptedData: message.encryptedData,
-        timestamp: Date.now()
-      }));
+      if (message.messageType) {
+        // Key exchange or other special messages
+        targetNode.socket.send(JSON.stringify({
+          type: message.messageType,
+          fromNodeId: message.fromNodeId,
+          ciphertext: message.ciphertext,
+          acknowledged: message.acknowledged
+        }));
+      } else {
+        // Regular encrypted message
+        targetNode.socket.send(JSON.stringify({
+          type: 'encrypted_message',
+          fromNodeId: message.fromNodeId,
+          chatId: message.chatId,
+          encryptedData: message.encryptedData,
+          timestamp: Date.now()
+        }));
+      }
     }
   }
 });
@@ -141,16 +183,27 @@ fastify.get('/stats', async (request, reply) => {
   };
 });
 
-const start = async () => {
-  try {
-    const port = process.env.PORT || 3000;
-    await fastify.listen({ port, host: '0.0.0.0' });
-    console.log(`Coordination server running on port ${port}`);
-    console.log('Use ngrok to expose this server: ngrok http 3000');
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
+const program = new Command();
 
-start();
+program
+  .name('melq-coordinator')
+  .description('MELQ Coordination Server')
+  .version('1.0.0')
+  .option('-p, --port <port>', 'Port to run the coordinator on', '3000')
+  .action(async (options) => {
+    const start = async () => {
+      try {
+        const port = parseInt(options.port);
+        await fastify.listen({ port, host: '0.0.0.0' });
+        console.log(`Coordination server running on port ${port}`);
+        console.log(`Use ngrok to expose this server: ngrok http ${port}`);
+      } catch (err) {
+        fastify.log.error(err);
+        process.exit(1);
+      }
+    };
+
+    start();
+  });
+
+program.parse();
