@@ -1,12 +1,18 @@
 import readline from 'readline';
 import chalk from 'chalk';
 
+const CHAT_MODES = {
+  DIRECTORY: 'directory',
+  CHAT: 'chat'
+};
+
 export class CLIInterface {
   constructor(node) {
     this.node = node;
     this.node.cliInterface = this; // Set reference for prompt restoration
     this.currentPath = '/';
     this.currentChat = null;
+    this.mode = CHAT_MODES.DIRECTORY;
     this.messages = new Map(); // chatId -> messages[]
     this.rl = readline.createInterface({
       input: process.stdin,
@@ -42,8 +48,13 @@ export class CLIInterface {
 
   getPrompt() {
     const nodeInfo = chalk.green(`[${this.node.nodeId.slice(-8)}]`);
-    const path = chalk.blue(this.currentPath);
-    return `${nodeInfo} ${path}$ `;
+    
+    if (this.mode === CHAT_MODES.CHAT && this.currentChat) {
+      return `${nodeInfo} ${chalk.yellow(this.currentChat.name)}> `;
+    } else {
+      const path = chalk.blue(this.currentPath);
+      return `${nodeInfo} ${path}$ `;
+    }
   }
 
   updatePrompt() {
@@ -51,6 +62,45 @@ export class CLIInterface {
   }
 
   handleCommand(input) {
+    if (this.mode === CHAT_MODES.CHAT) {
+      this.handleChatInput(input);
+    } else {
+      this.handleDirectoryCommand(input);
+    }
+  }
+
+  handleChatInput(input) {
+    const trimmedInput = input.trim();
+    
+    // Handle special commands in chat mode
+    if (trimmedInput === '/exit' || trimmedInput === '/quit') {
+      this.exitChat();
+      return;
+    }
+    
+    if (trimmedInput === '/help') {
+      this.showChatHelp();
+      this.rl.prompt();
+      return;
+    }
+    
+    if (trimmedInput === '/clear') {
+      this.clearChatScreen();
+      this.rl.prompt();
+      return;
+    }
+    
+    if (trimmedInput === '') {
+      this.rl.prompt();
+      return;
+    }
+    
+    // Send the message
+    this.sendMessage(trimmedInput);
+    this.rl.prompt();
+  }
+
+  handleDirectoryCommand(input) {
     const args = input.split(' ');
     const command = args[0];
 
@@ -65,10 +115,6 @@ export class CLIInterface {
       
       case 'mkdir':
         this.createChat(args.slice(1).join(' '));
-        break;
-      
-      case 'say':
-        this.sendMessage(args.slice(1).join(' '));
         break;
       
       case 'discover':
@@ -92,10 +138,6 @@ export class CLIInterface {
         console.clear();
         break;
       
-      case 'history':
-        this.showChatHistory();
-        break;
-      
       case '':
         break;
       
@@ -108,20 +150,16 @@ export class CLIInterface {
   }
 
   listContents() {
-    if (this.currentPath === '/') {
-      console.log(chalk.yellow('Available chats:'));
-      if (this.node.chats.size === 0) {
-        console.log(chalk.gray('  (no chats available)'));
-        console.log(chalk.gray('  Use "mkdir <chat_name>" to create a new chat'));
-      } else {
-        for (const [chatId, chat] of this.node.chats.entries()) {
-          const messageCount = this.messages.get(chatId)?.length || 0;
-          const unread = messageCount > 0 ? chalk.red(` (${messageCount})`) : '';
-          console.log(chalk.cyan(`  ${chat.name}/`) + unread);
-        }
-      }
+    console.log(chalk.yellow('Available chats:'));
+    if (this.node.chats.size === 0) {
+      console.log(chalk.gray('  (no chats available)'));
+      console.log(chalk.gray('  Use "mkdir <chat_name>" to create a new chat'));
     } else {
-      this.showChatHistory();
+      for (const [chatId, chat] of this.node.chats.entries()) {
+        const messageCount = this.messages.get(chatId)?.length || 0;
+        const unread = messageCount > 0 ? chalk.red(` (${messageCount})`) : '';
+        console.log(chalk.cyan(`  ${chat.name}/`) + unread);
+      }
     }
   }
 
@@ -132,17 +170,13 @@ export class CLIInterface {
     }
 
     if (path === '..' || path === '/') {
-      this.currentPath = '/';
-      this.currentChat = null;
+      this.exitChat();
     } else {
       // Remove trailing slash if present
       const cleanPath = path.replace(/\/$/, '');
       const chat = Array.from(this.node.chats.values()).find(c => c.name === cleanPath);
       if (chat) {
-        this.currentPath = `/${cleanPath}`;
-        this.currentChat = chat;
-        console.log(chalk.green(`Entered chat: ${cleanPath}`));
-        this.showChatHistory();
+        this.enterChat(chat);
       } else {
         console.log(chalk.red(`Chat not found: ${path}`));
         console.log(chalk.gray('Available chats:'));
@@ -155,8 +189,6 @@ export class CLIInterface {
         }
       }
     }
-
-    this.updatePrompt();
   }
 
   createChat(chatName) {
@@ -186,7 +218,6 @@ export class CLIInterface {
     }
 
     if (!message) {
-      console.log('Usage: say <message>');
       return;
     }
 
@@ -228,15 +259,12 @@ export class CLIInterface {
       timestamp: messageData.timestamp
     });
 
-    if (this.currentChat && this.currentChat.id === messageData.chatId) {
+    // Only show messages if we're in the same chat in chat mode
+    if (this.mode === CHAT_MODES.CHAT && this.currentChat && this.currentChat.id === messageData.chatId) {
       console.log(`\n${chalk.blue(`[${timestamp}] ${fromNode}:`)} ${messageData.text}`);
       this.rl.prompt();
-    } else {
-      const chat = this.node.chats.get(messageData.chatId);
-      const chatName = chat ? chat.name : messageData.chatId.slice(-8);
-      console.log(`\n${chalk.magenta(`[New message in ${chatName}]`)} ${chalk.blue(fromNode)}: ${messageData.text}`);
-      this.rl.prompt();
     }
+    // In directory mode, don't show any message notifications
   }
 
   showChatHistory() {
@@ -271,16 +299,56 @@ export class CLIInterface {
     }
   }
 
+  enterChat(chat) {
+    this.currentPath = `/${chat.name}`;
+    this.currentChat = chat;
+    this.mode = CHAT_MODES.CHAT;
+    
+    console.clear();
+    console.log(chalk.green('╔══════════════════════════════════════╗'));
+    console.log(chalk.green(`║          Chat: ${chat.name.padEnd(24)}║`));
+    console.log(chalk.green('╚══════════════════════════════════════╝'));
+    console.log(chalk.gray('Type /help for chat commands, /exit to leave\n'));
+    
+    this.showChatHistory();
+    this.updatePrompt();
+  }
+
+  exitChat() {
+    this.currentPath = '/';
+    this.currentChat = null;
+    this.mode = CHAT_MODES.DIRECTORY;
+    
+    console.log(chalk.yellow('\n--- Left chat ---'));
+    this.updatePrompt();
+  }
+
+  clearChatScreen() {
+    console.clear();
+    if (this.currentChat) {
+      console.log(chalk.green('╔══════════════════════════════════════╗'));
+      console.log(chalk.green(`║          Chat: ${this.currentChat.name.padEnd(24)}║`));
+      console.log(chalk.green('╚══════════════════════════════════════╝'));
+      console.log(chalk.gray('Type /help for chat commands, /exit to leave\n'));
+      this.showChatHistory();
+    }
+  }
+
+  showChatHelp() {
+    console.log(chalk.yellow('\\nChat mode commands:'));
+    console.log(chalk.cyan('  /exit') + '        - Leave this chat');
+    console.log(chalk.cyan('  /help') + '        - Show this help');
+    console.log(chalk.cyan('  /clear') + '       - Clear chat screen');
+    console.log(chalk.gray('  Just type your message and press Enter to send'));
+  }
+
   showHelp() {
     console.log(chalk.yellow('Available commands:'));
-    console.log(chalk.cyan('  ls') + '           - List chats (or messages if in a chat)');
-    console.log(chalk.cyan('  cd <chat>') + '    - Enter a chat directory');
-    console.log(chalk.cyan('  cd ..') + '        - Go back to main directory');
+    console.log(chalk.cyan('  ls') + '           - List chats');
+    console.log(chalk.cyan('  cd <chat>') + '    - Enter a chat');
     console.log(chalk.cyan('  mkdir <name>') + ' - Create a new chat');
-    console.log(chalk.cyan('  say <message>') + ' - Send a message in current chat');
     console.log(chalk.cyan('  discover') + '     - Discover other nodes');
     console.log(chalk.cyan('  nodes') + '        - Show connected peers');
-    console.log(chalk.cyan('  history') + '      - Show chat history');
     console.log(chalk.cyan('  pwd') + '          - Show current path');
     console.log(chalk.cyan('  clear') + '        - Clear screen');
     console.log(chalk.cyan('  help') + '         - Show this help');
