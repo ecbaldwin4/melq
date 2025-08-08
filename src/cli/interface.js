@@ -14,6 +14,7 @@ export class CLIInterface {
     this.currentChat = null;
     this.mode = CHAT_MODES.DIRECTORY;
     this.messages = new Map(); // chatId -> messages[]
+    this.chatHeight = process.stdout.rows - 4; // Reserve space for input area
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -22,10 +23,15 @@ export class CLIInterface {
 
     this.setupEventHandlers();
     this.setupNodeHandlers();
+    this.setupScreenResize();
   }
 
   setupEventHandlers() {
     this.rl.on('line', (input) => {
+      if (this.mode === CHAT_MODES.CHAT) {
+        // Clear the input line before processing
+        process.stdout.write('\r\x1b[K');
+      }
       this.handleCommand(input.trim());
     });
 
@@ -40,6 +46,15 @@ export class CLIInterface {
     });
   }
 
+  setupScreenResize() {
+    process.stdout.on('resize', () => {
+      this.chatHeight = process.stdout.rows - 4;
+      if (this.mode === CHAT_MODES.CHAT) {
+        this.refreshChatDisplay();
+      }
+    });
+  }
+
   setupNodeHandlers() {
     this.node.onMessage((messageData) => {
       this.handleIncomingMessage(messageData);
@@ -50,7 +65,7 @@ export class CLIInterface {
     const nodeInfo = chalk.green(`[${this.node.nodeId.slice(-8)}]`);
     
     if (this.mode === CHAT_MODES.CHAT && this.currentChat) {
-      return `${nodeInfo} ${chalk.yellow(this.currentChat.name)}> `;
+      return '> '; // Simple input prompt in chat mode
     } else {
       const path = chalk.blue(this.currentPath);
       return `${nodeInfo} ${path}$ `;
@@ -223,17 +238,16 @@ export class CLIInterface {
 
     const targets = Array.from(this.node.peerKeys.keys());
     if (targets.length === 0) {
-      console.log(chalk.red('No peers available. Use "discover" to find other nodes.'));
+      this.displaySystemMessage('No peers available. Use "discover" to find other nodes.');
       return;
     }
 
+    // Send to peers
     targets.forEach(nodeId => {
       this.node.sendMessage(this.currentChat.id, message, nodeId);
     });
 
-    const timestamp = new Date().toLocaleTimeString();
-    console.log(chalk.green(`[${timestamp}] You: ${message}`));
-    
+    // Add to local message history
     if (!this.messages.has(this.currentChat.id)) {
       this.messages.set(this.currentChat.id, []);
     }
@@ -243,10 +257,13 @@ export class CLIInterface {
       text: message,
       timestamp: Date.now()
     });
+
+    // Refresh the chat display to show the new message
+    this.refreshChatDisplay();
+    this.showInputArea();
   }
 
   handleIncomingMessage(messageData) {
-    const timestamp = new Date(messageData.timestamp).toLocaleTimeString();
     const fromNode = messageData.fromNodeId.slice(-8);
 
     if (!this.messages.has(messageData.chatId)) {
@@ -259,32 +276,14 @@ export class CLIInterface {
       timestamp: messageData.timestamp
     });
 
-    // Only show messages if we're in the same chat in chat mode
+    // Only refresh display if we're in the same chat in chat mode
     if (this.mode === CHAT_MODES.CHAT && this.currentChat && this.currentChat.id === messageData.chatId) {
-      console.log(`\n${chalk.blue(`[${timestamp}] ${fromNode}:`)} ${messageData.text}`);
-      this.rl.prompt();
+      this.refreshChatDisplay();
+      this.showInputArea();
     }
     // In directory mode, don't show any message notifications
   }
 
-  showChatHistory() {
-    if (!this.currentChat) return;
-
-    const chatMessages = this.messages.get(this.currentChat.id) || [];
-    
-    if (chatMessages.length === 0) {
-      console.log(chalk.gray('No messages in this chat yet.'));
-      return;
-    }
-
-    console.log(chalk.yellow(`--- Chat History for ${this.currentChat.name} ---`));
-    chatMessages.forEach(msg => {
-      const timestamp = new Date(msg.timestamp).toLocaleTimeString();
-      const color = msg.from === 'You' ? chalk.green : chalk.blue;
-      console.log(`${color(`[${timestamp}] ${msg.from}:`)} ${msg.text}`);
-    });
-    console.log(chalk.yellow('--- End of History ---'));
-  }
 
   showNodes() {
     const peerCount = this.node.peerKeys.size;
@@ -304,14 +303,63 @@ export class CLIInterface {
     this.currentChat = chat;
     this.mode = CHAT_MODES.CHAT;
     
-    console.clear();
-    console.log(chalk.green('╔══════════════════════════════════════╗'));
-    console.log(chalk.green(`║          Chat: ${chat.name.padEnd(24)}║`));
-    console.log(chalk.green('╚══════════════════════════════════════╝'));
-    console.log(chalk.gray('Type /help for chat commands, /exit to leave\n'));
-    
-    this.showChatHistory();
+    this.refreshChatDisplay();
+    this.showInputArea();
     this.updatePrompt();
+  }
+
+  refreshChatDisplay() {
+    if (!this.currentChat) return;
+    
+    console.clear();
+    
+    // Header
+    const chatName = this.currentChat.name.toUpperCase();
+    const totalWidth = 60;
+    const padding = Math.max(0, Math.floor((totalWidth - chatName.length - 6) / 2));
+    const leftPadding = '═'.repeat(padding);
+    const rightPadding = '═'.repeat(totalWidth - chatName.length - 6 - padding);
+    
+    console.log(chalk.green('╔' + '═'.repeat(totalWidth - 2) + '╗'));
+    console.log(chalk.green('║' + ' '.repeat(totalWidth - 2) + '║'));
+    console.log(chalk.green(`║${leftPadding}  ${chatName}  ${rightPadding}║`));
+    console.log(chalk.green('║' + ' '.repeat(totalWidth - 2) + '║'));
+    console.log(chalk.green('╚' + '═'.repeat(totalWidth - 2) + '╝'));
+    
+    // Chat messages area
+    const chatMessages = this.messages.get(this.currentChat.id) || [];
+    const displayMessages = chatMessages.slice(-this.chatHeight);
+    
+    if (displayMessages.length === 0) {
+      console.log(chalk.gray('\n  No messages yet. Start the conversation!\n'));
+    } else {
+      console.log(); // Empty line after header
+      displayMessages.forEach(msg => {
+        const timestamp = new Date(msg.timestamp).toLocaleTimeString();
+        if (msg.from === 'You') {
+          console.log(chalk.green(`  [${timestamp}] You: ${msg.text}`));
+        } else {
+          console.log(chalk.blue(`  [${timestamp}] ${msg.from}: ${msg.text}`));
+        }
+      });
+      console.log(); // Empty line before input
+    }
+  }
+
+  showInputArea() {
+    // Move cursor to bottom and show input area
+    const inputLine = '─'.repeat(42);
+    console.log(chalk.gray(inputLine));
+    console.log(chalk.gray('Type your message (use /exit to leave, /help for help):'));
+  }
+
+  displaySystemMessage(message) {
+    if (this.mode === CHAT_MODES.CHAT) {
+      console.log(chalk.yellow(`  System: ${message}`));
+      this.showInputArea();
+    } else {
+      console.log(chalk.yellow(message));
+    }
   }
 
   exitChat() {
@@ -335,11 +383,9 @@ export class CLIInterface {
   }
 
   showChatHelp() {
-    console.log(chalk.yellow('\\nChat mode commands:'));
-    console.log(chalk.cyan('  /exit') + '        - Leave this chat');
-    console.log(chalk.cyan('  /help') + '        - Show this help');
-    console.log(chalk.cyan('  /clear') + '       - Clear chat screen');
-    console.log(chalk.gray('  Just type your message and press Enter to send'));
+    this.displaySystemMessage('Chat commands: /exit (leave chat), /help (this help), /clear (refresh screen)');
+    this.displaySystemMessage('Just type your message and press Enter to send it!');
+    this.rl.prompt();
   }
 
   showHelp() {
