@@ -247,11 +247,49 @@ else
     if [ -z "$goto_success" ]; then
         echo "⚠️  Installation completed, but 'melq' command not found in PATH"
         echo
-        echo "You may need to:"
-        echo "• Restart your terminal"
-        echo "• Add npm global bin to PATH: export PATH=\$(npm bin -g):\$PATH"
-        echo
-        echo "Or use: npm start (from $INSTALL_DIR)"
+        echo "🔧 Trying to fix PATH automatically..."
+        
+        # Get npm global bin directory
+        NPM_BIN=$(npm bin -g 2>/dev/null || echo "")
+        
+        if [ -n "$NPM_BIN" ]; then
+            echo "Adding $NPM_BIN to PATH..."
+            
+            # Add to current session
+            export PATH="$NPM_BIN:$PATH"
+            
+            # Try to add to shell profile
+            SHELL_PROFILE=""
+            if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
+                SHELL_PROFILE="$HOME/.bashrc"
+            elif [ -f "$HOME/.zshrc" ]; then
+                SHELL_PROFILE="$HOME/.zshrc"
+            elif [ -f "$HOME/.profile" ]; then
+                SHELL_PROFILE="$HOME/.profile"
+            fi
+            
+            if [ -n "$SHELL_PROFILE" ]; then
+                # Check if PATH export already exists
+                if ! grep -q "export PATH.*npm bin -g" "$SHELL_PROFILE" 2>/dev/null; then
+                    echo "" >> "$SHELL_PROFILE"
+                    echo "# Added by MELQ installer" >> "$SHELL_PROFILE"
+                    echo "export PATH=\"\$(npm bin -g 2>/dev/null):\$PATH\"" >> "$SHELL_PROFILE"
+                    echo "✅ Added to $SHELL_PROFILE"
+                    echo "   (will take effect in new terminals)"
+                fi
+            fi
+            
+            # Test if melq command now works
+            if command -v melq &> /dev/null; then
+                echo "✅ 'melq' command is now available!"
+            else
+                echo "⚠️  Please restart your terminal or run:"
+                echo "   export PATH=\"\$(npm bin -g):\$PATH\""
+            fi
+        else
+            echo "❌ Could not determine npm global bin directory"
+            echo "   Please run: npm start (from $INSTALL_DIR)"
+        fi
     fi
 fi
 
