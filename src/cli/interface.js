@@ -651,16 +651,39 @@ export class CLIInterface {
     // Show hosting status if applicable
     if (this.connectionInfo.isHost) {
       console.log(chalk.dim.gray(`  🏠 Role: ${chalk.green('Hosting')} (you started this network)`));
+      
+      if (this.connectionInfo.hasInternet) {
+        console.log(chalk.dim.gray(`  🌍 Access: ${chalk.white('Local + Internet')} (both connection codes active)`));
+      } else {
+        console.log(chalk.dim.gray(`  🏠 Access: ${chalk.white('Local Network Only')}`));
+      }
     }
     
-    if (this.connectionInfo.connectionCode) {
+    // Show connection codes (local and internet if available)
+    if (this.connectionInfo.localConnectionCode) {
+      const displayCode = this.connectionInfo.localConnectionCode.length > 40 
+        ? this.connectionInfo.localConnectionCode.substring(0, 37) + '...'
+        : this.connectionInfo.localConnectionCode;
+      console.log(chalk.dim.gray(`  🏠 Local: ${chalk.white(displayCode)}`));
+    }
+    
+    if (this.connectionInfo.internetConnectionCode) {
+      const displayCode = this.connectionInfo.internetConnectionCode.length > 40 
+        ? this.connectionInfo.internetConnectionCode.substring(0, 37) + '...'
+        : this.connectionInfo.internetConnectionCode;
+      console.log(chalk.dim.gray(`  🌐 Internet: ${chalk.white(displayCode)}`));
+    }
+    
+    // Fallback for older single connectionCode format
+    if (this.connectionInfo.connectionCode && !this.connectionInfo.localConnectionCode && !this.connectionInfo.internetConnectionCode) {
       const displayCode = this.connectionInfo.connectionCode.length > 40 
         ? this.connectionInfo.connectionCode.substring(0, 37) + '...'
         : this.connectionInfo.connectionCode;
       console.log(chalk.dim.gray(`  📍 Connected to: ${chalk.white(displayCode)}`));
     }
     
-    if (this.connectionInfo.method) {
+    // Only show method for non-host connections (clients)
+    if (this.connectionInfo.method && !this.connectionInfo.isHost) {
       const methodIcon = this.connectionInfo.method === 'local' ? '🏠' : '🌐';
       const methodText = this.connectionInfo.method === 'local' ? 'Local Network' : 
                         this.connectionInfo.method === 'internet' ? 'Internet' : 

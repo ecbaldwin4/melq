@@ -402,12 +402,15 @@ async function attemptAutoClientConnection(networkInfo) {
     // Give additional time for any remaining output to settle
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Create connection info for display
+    // Create connection info for display - preserve both local and internet addresses
     const connectionInfo = {
       connectionCode,
-      method: 'local',
-      tunnelMethod: null,
-      isHost: true
+      localConnectionCode: networkInfo.localConnectionCode,
+      internetConnectionCode: networkInfo.internetConnectionCode,
+      method: networkInfo.hasInternet ? 'internet' : 'local',
+      tunnelMethod: networkInfo.hasInternet ? (networkInfo.internetConnectionCode.includes('ngrok.io') ? 'ngrok' : 'manual') : null,
+      isHost: true,
+      hasInternet: networkInfo.hasInternet
     };
     
     // Start client chat interface
