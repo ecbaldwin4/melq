@@ -208,9 +208,61 @@ if not errorlevel 1 (
 
 echo ⚠️  Installation completed, but 'melq' command not found
 echo.
-echo You can run MELQ by opening a command prompt in:
-echo %INSTALL_DIR%
-echo And typing: npm start
+echo 🔧 Would you like me to try fixing the PATH automatically?
+echo This will add the npm global directory to your system PATH.
+echo.
+if "%~1"=="" (
+    set /p fix_path="Add npm global directory to PATH? (y/n): "
+) else (
+    echo Running in automated mode - will attempt PATH fix...
+    set fix_path=y
+)
+
+if /i "%fix_path%"=="y" (
+    echo.
+    echo 🔧 Trying to fix PATH automatically...
+    
+    REM Get npm global bin directory
+    for /f "tokens=*" %%i in ('npm bin -g 2^>nul') do set NPM_BIN=%%i
+    
+    if not "!NPM_BIN!"=="" (
+        echo Adding !NPM_BIN! to system PATH...
+        
+        REM Add to system PATH (requires admin, but we'll try)
+        setx PATH "%PATH%;!NPM_BIN!" >nul 2>&1
+        
+        if not errorlevel 1 (
+            echo ✅ Successfully added to system PATH
+            echo 🔄 Please restart your command prompt for changes to take effect
+            echo.
+            echo After restarting, you can use:
+            echo   melq                    # Interactive menu
+            echo   melq --host             # Host a network
+            echo   melq --join ^<code^>      # Join a network
+        ) else (
+            echo ⚠️  Could not modify system PATH automatically
+            echo.
+            echo Manual steps:
+            echo 1. Open "Environment Variables" in Windows settings
+            echo 2. Add this to your PATH: !NPM_BIN!
+            echo 3. Restart your command prompt
+        )
+    ) else (
+        echo ❌ Could not determine npm global directory
+        echo.
+        echo You can run MELQ by opening a command prompt in:
+        echo %INSTALL_DIR%
+        echo And typing: npm start
+    )
+) else (
+    echo.
+    echo You can run MELQ by opening a command prompt in:
+    echo %INSTALL_DIR%
+    echo And typing: npm start
+    echo.
+    echo Or manually add npm global directory to your PATH:
+    for /f "tokens=*" %%i in ('npm bin -g 2^>nul') do echo   %%i
+)
 echo.
 
 :success

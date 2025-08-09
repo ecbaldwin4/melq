@@ -271,11 +271,14 @@ else
             if [ -n "$SHELL_PROFILE" ]; then
                 # Check if PATH export already exists
                 if ! grep -q "export PATH.*npm bin -g" "$SHELL_PROFILE" 2>/dev/null; then
-                    echo "" >> "$SHELL_PROFILE"
-                    echo "# Added by MELQ installer" >> "$SHELL_PROFILE"
-                    echo "export PATH=\"\$(npm bin -g 2>/dev/null):\$PATH\"" >> "$SHELL_PROFILE"
-                    echo "✅ Added to $SHELL_PROFILE"
-                    echo "   (will take effect in new terminals)"
+                    add_to_profile=$(interactive_prompt "Add to $SHELL_PROFILE for future terminals? (y/n): " "y")
+                    if [[ $add_to_profile =~ ^[Yy]$ ]]; then
+                        echo "" >> "$SHELL_PROFILE"
+                        echo "# Added by MELQ installer" >> "$SHELL_PROFILE"
+                        echo "export PATH=\"\$(npm bin -g 2>/dev/null):\$PATH\"" >> "$SHELL_PROFILE"
+                        echo "✅ Added to $SHELL_PROFILE"
+                        echo "   (will take effect in new terminals)"
+                    fi
                 fi
             fi
             
