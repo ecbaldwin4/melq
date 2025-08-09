@@ -358,12 +358,18 @@ else
     
     # Get npm global bin directory (works with both old and new npm versions)
     NPM_BIN=""
-    NPM_BIN=$(npm bin -g 2>/dev/null || echo "")
-    if [ -z "$NPM_BIN" ]; then
-        # Try newer npm method
+    # Try newer npm method first (npm v7+)
+    NPM_PREFIX=$(npm config get prefix 2>/dev/null)
+    if [ -n "$NPM_PREFIX" ]; then
+        NPM_BIN="$NPM_PREFIX/bin"
+    else
+        # Fallback: try npm prefix -g
         NPM_PREFIX=$(npm prefix -g 2>/dev/null)
         if [ -n "$NPM_PREFIX" ]; then
             NPM_BIN="$NPM_PREFIX/bin"
+        else
+            # Last fallback: try npm bin -g (older versions)
+            NPM_BIN=$(npm bin -g 2>/dev/null || echo "")
         fi
     fi
     

@@ -1,12 +1,18 @@
 @echo off
 setlocal
 
+REM Enable script execution for the current session
+powershell -Command "Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force" >nul 2>&1
+
 echo ====================================
 echo    MELQ Zero-Touch Installer
 echo ====================================
 echo.
 echo This will install MELQ - Quantum-Secure P2P Chat
 echo on your Windows computer.
+echo.
+echo Note: This installer will attempt automated dependency installation.
+echo If you encounter permission errors, please run as Administrator.
 echo.
 
 REM Check if running from correct location
@@ -50,7 +56,38 @@ if errorlevel 1 (
     echo [X] Node.js is not installed!
     echo.
     echo Node.js is required to run MELQ.
-    set /p install_node="Would you like to download and install Node.js? (y/n): "
+    echo.
+    echo AUTOMATED INSTALLATION ATTEMPT:
+    echo Trying to install Node.js via winget (Windows Package Manager)...
+    
+    REM Try winget first (available on Windows 10+ with App Installer)
+    winget install OpenJS.NodeJS --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
+    if not errorlevel 1 (
+        echo [OK] Node.js installed successfully via winget!
+        echo Please restart this installer to continue.
+        pause
+        exit /b 0
+    )
+    
+    echo Winget installation failed. Trying chocolatey...
+    
+    REM Check if chocolatey is installed
+    choco --version >nul 2>&1
+    if not errorlevel 1 (
+        echo Installing Node.js via Chocolatey...
+        choco install nodejs -y
+        if not errorlevel 1 (
+            echo [OK] Node.js installed successfully via Chocolatey!
+            echo Please restart this installer to continue.
+            pause
+            exit /b 0
+        )
+    )
+    
+    echo.
+    echo MANUAL INSTALLATION REQUIRED:
+    echo Automated installation methods failed.
+    set /p install_node="Would you like to download and install Node.js manually? (y/n): "
     
     if /i "%install_node%"=="y" (
         echo.
@@ -111,7 +148,37 @@ if errorlevel 1 (
     echo ⚠️  Git is not installed.
     echo Git is needed to download MELQ.
     echo.
-    set /p install_git="Would you like to download and install Git? (y/n): "
+    echo AUTOMATED INSTALLATION ATTEMPT:
+    echo Trying to install Git via winget...
+    
+    REM Try winget first
+    winget install Git.Git --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
+    if not errorlevel 1 (
+        echo [OK] Git installed successfully via winget!
+        echo Please restart this installer to continue.
+        pause
+        exit /b 0
+    )
+    
+    echo Winget installation failed. Trying chocolatey...
+    
+    REM Try chocolatey if available
+    choco --version >nul 2>&1
+    if not errorlevel 1 (
+        echo Installing Git via Chocolatey...
+        choco install git -y
+        if not errorlevel 1 (
+            echo [OK] Git installed successfully via Chocolatey!
+            echo Please restart this installer to continue.
+            pause
+            exit /b 0
+        )
+    )
+    
+    echo.
+    echo MANUAL INSTALLATION REQUIRED:
+    echo Automated installation methods failed.
+    set /p install_git="Would you like to download and install Git manually? (y/n): "
     
     if /i "%install_git%"=="y" (
         echo 🌐 Opening Git download page...

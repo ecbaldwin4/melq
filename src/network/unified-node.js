@@ -68,6 +68,7 @@ export class UnifiedNode {
   // HOST MODE METHODS
   async startAsHost(port = 0, options = {}) {
     const { exposeToInternet = false, tunnelMethod = 'auto', customDomain } = options;
+    console.log(chalk.gray(`🔧 Host options: exposeToInternet=${exposeToInternet}, tunnelMethod=${tunnelMethod}`));
     await this.initialize();
     this.mode = NODE_MODES.HOST;
     
@@ -125,7 +126,7 @@ export class UnifiedNode {
     // Expose to internet if requested
     if (exposeToInternet) {
       try {
-        console.log(chalk.gray(`🔧 Setting up ${tunnelMethod} tunnel for port ${this.hostPort}...`));
+        console.log(chalk.yellow(`🌐 Setting up internet access with ${tunnelMethod} tunnel for port ${this.hostPort}...`));
         const internetInfo = await this.tunneling.exposeToInternet(this.hostPort, {
           preferredMethod: tunnelMethod,
           customDomain
@@ -174,7 +175,13 @@ export class UnifiedNode {
       const nodeId = this.getNodeIdBySocket(ws);
       if (nodeId) {
         this.connectedNodes.delete(nodeId);
+        this.peerKeys.delete(nodeId);
         this.safeLog(`Node ${nodeId} disconnected`);
+        
+        // Notify CLI interface to update UI
+        if (this.cliInterface) {
+          this.cliInterface.updatePrompt();
+        }
       }
     });
   }

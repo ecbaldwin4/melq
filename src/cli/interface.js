@@ -1,5 +1,6 @@
 import readline from 'readline';
 import chalk from 'chalk';
+import logger from '../utils/async-logger.js';
 
 const CHAT_MODES = {
   DIRECTORY: 'directory',
@@ -90,7 +91,7 @@ export class CLIInterface {
     process.stdout.write('\r' + ' '.repeat(50) + '\r');
     
     if (successMessage) {
-      console.log(chalk.green('✅ ' + successMessage));
+      logger.log(chalk.green('✅ ' + successMessage));
     }
   }
 
@@ -164,8 +165,6 @@ export class CLIInterface {
 
     switch (command) {
       case 'ls':
-        // Show connection info first, then chat list
-        this.showConnectionInfo();
         this.listContents();
         break;
       
@@ -200,8 +199,6 @@ export class CLIInterface {
       
       case 'clear':
         console.clear();
-        // Show connection info after clearing screen in directory mode
-        this.showConnectionInfo();
         break;
       
       case '':
@@ -209,8 +206,8 @@ export class CLIInterface {
       
       default:
         if (command) {
-          console.log(chalk.red(`❌ Command "${command}" not found.`));
-          console.log(chalk.dim.gray('💡 Type "help" to see available commands.'));
+          logger.log(chalk.red(`❌ Command "${command}" not found.`));
+          logger.log(chalk.dim.gray('💡 Type "help" to see available commands.'));
         }
     }
 
@@ -391,8 +388,18 @@ export class CLIInterface {
 
     // Only refresh display if we're in the same chat in chat mode
     if (this.mode === CHAT_MODES.CHAT && this.currentChat && this.currentChat.id === messageData.chatId) {
+      // Preserve current input line
+      const currentInput = this.rl.line;
+      const currentCursor = this.rl.cursor;
+      
       this.refreshChatDisplay();
       this.showInputArea();
+      
+      // Restore the input line and cursor position
+      this.rl.line = currentInput;
+      this.rl.cursor = currentCursor;
+      this.rl.prompt();
+      process.stdout.write(currentInput);
     }
     // In directory mode, don't show any message notifications
   }
@@ -572,10 +579,10 @@ export class CLIInterface {
 
   displaySystemMessage(message) {
     if (this.mode === CHAT_MODES.CHAT) {
-      console.log(chalk.yellow(`  System: ${message}`));
+      logger.log(chalk.yellow(`  System: ${message}`));
       this.showInputArea();
     } else {
-      console.log(chalk.yellow(message));
+      logger.log(chalk.yellow(message));
     }
   }
 
@@ -587,24 +594,22 @@ export class CLIInterface {
     this.mode = CHAT_MODES.DIRECTORY;
     
     console.clear();
-    console.log(chalk.green(`✅ Left chat "${chatName}"`));
-    console.log(chalk.dim.gray('💡 You\'re back in the main directory. Use "ls" to see all chats.\n'));
     
-    // Show connection info when returning to main directory
-    this.showConnectionInfo();
+    // Show the full welcome banner when returning from a chat
+    this.showWelcomeBanner();
+    
+    // Force synchronous display of exit message
+    logger.sync('log', chalk.green(`✅ Left chat "${chatName}"`));
+    logger.sync('log', '');
     
     this.updatePrompt();
     this.rl.prompt();
   }
 
   clearChatScreen() {
-    console.clear();
     if (this.currentChat) {
-      console.log(chalk.green('╔══════════════════════════════════════╗'));
-      console.log(chalk.green(`║          Chat: ${this.currentChat.name.padEnd(24)}║`));
-      console.log(chalk.green('╚══════════════════════════════════════╝'));
-      console.log(chalk.gray('Type /help for chat commands, /exit to leave\n'));
-      this.showChatHistory();
+      this.refreshChatDisplay();
+      this.showInputArea();
     }
   }
 
@@ -623,8 +628,6 @@ export class CLIInterface {
     console.log(chalk.bold.cyan('\n🗂️  Navigation:'));
     console.log(chalk.cyan('  ls') + '              - ' + chalk.gray('List available chats with activity'));
     console.log(chalk.cyan('  cd <chat>') + '       - ' + chalk.gray('Enter a chat room'));
-    console.log(chalk.cyan('  cd ..') + '           - ' + chalk.gray('Go back to main directory'));
-    console.log(chalk.cyan('  pwd') + '             - ' + chalk.gray('Show current location'));
     
     console.log(chalk.bold.cyan('\n💬 Chat Management:'));
     console.log(chalk.cyan('  mkdir <name>') + '    - ' + chalk.gray('Create a new chat room'));
@@ -709,7 +712,7 @@ export class CLIInterface {
     console.log();
   }
 
-  start() {
+  showWelcomeBanner() {
     const terminalWidth = Math.min(process.stdout.columns || 80, 80);
     const title = '🔐 MELQ - Quantum-Secure P2P Chat';
     const subtitle = 'Connected as: ' + this.node.nodeId.slice(-8);
@@ -734,7 +737,10 @@ export class CLIInterface {
     
     console.log(chalk.dim.gray('💡 Type "help" for available commands or "ls" to see chats.'));
     console.log(chalk.dim.gray('🗂️  Use directory-like commands to navigate: cd, ls, mkdir\n'));
-    
+  }
+
+  start() {
+    this.showWelcomeBanner();
     this.rl.prompt();
   }
 }

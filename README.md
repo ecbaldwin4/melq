@@ -7,7 +7,7 @@ A secure peer-to-peer chat system with a directory-like CLI interface. Uses ngro
 - **🔐 Quantum-Secure**: MLKEM-768 key exchange + AES-256 encryption
 - **🌐 P2P Architecture**: Direct encrypted messaging between nodes
 - **🗂️ Beautiful TUI**: Filesystem-like interface with emojis and colors
-- **🚀 Multiple Connection Methods**: ngrok, localtunnel, serveo, or manual setup
+- **🚀 Multiple Connection Methods**: localtunnel (no account!), ngrok, serveo, or manual setup
 - **💬 Real-time Chat**: WebSocket-based with typing indicators
 - **📱 Responsive Design**: Adapts to different terminal sizes
 - **⚡ Smart Discovery**: Automatic peer discovery and connection
@@ -32,7 +32,7 @@ Or download and run: https://raw.githubusercontent.com/ecbaldwin4/melq/master/in
 This single command will:
 - ✅ Check if you have Node.js (helps you install if needed)
 - ⬇️ Download MELQ automatically
-- 📦 Install all dependencies
+- 📦 Install all dependencies including localtunnel for instant internet access
 - 🔗 Set up the global `melq` command
 - 🧪 Test everything works
 
@@ -74,7 +74,56 @@ What would you like to do?
 ```bash
 melq --host          # Directly host a network
 melq --join <code>   # Join with connection code
+melq --update        # Update to latest version
 melq --help          # Show all options
+```
+
+## Internet Connectivity (No Account Required!)
+
+MELQ makes it incredibly easy to connect with friends anywhere in the world:
+
+### 🌐 Automatic Internet Access
+
+When you host a network and choose "Local + Internet", MELQ automatically:
+
+1. **Uses Localtunnel First** - Instantly creates a secure tunnel with no signup required
+2. **Provides Connection Code** - Share the generated `https://abcd123.loca.lt` URL
+3. **Fallback Options** - If localtunnel is unavailable, tries ngrok, serveo, or manual setup
+4. **Works Everywhere** - No router configuration or port forwarding needed
+
+### 🚀 Hosting Options
+
+When you run `melq --host`, you'll see:
+
+```
+Network Access Options:
+1. 🏠 Local network only (same WiFi/LAN)
+2. 🌐 Local + Internet (anyone can join) ← Choose this!
+3. 🔧 Advanced options
+
+Tunneling Method:
+1. Auto (try localtunnel first - no account needed!) ← Recommended
+2. Localtunnel only (instant, no signup required)
+3. ngrok only (requires account for persistent URLs)
+4. Manual setup (port forwarding)
+```
+
+**Recommendation**: Choose option 2 (Local + Internet) with option 1 (Auto) for the easiest setup!
+
+### 🔗 Connection Codes
+
+After setup, MELQ shows you connection codes to share:
+
+```
+📋 Connection Codes:
+🏠 Local (same network):
+ melq://192.168.1.100:3000 
+
+🌐 Internet (anywhere):
+ melq://abcd123.loca.lt 
+
+Share these codes with others so they can join!
+Command: melq --join <connection_code>
 ```
 
 ## Commands
@@ -241,8 +290,9 @@ melq
 
 **"Failed to create tunnel"**
 - Check your internet connection
-- MELQ will try multiple tunnel services automatically
-- If all fail, it will provide manual setup instructions
+- MELQ tries localtunnel first (no account required), then ngrok, serveo
+- If all tunnel services fail, MELQ provides manual setup instructions
+- Localtunnel is usually the most reliable option
 
 ## Development
 
