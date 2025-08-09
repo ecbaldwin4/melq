@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ====================================
-echo    🔐 MELQ Zero-Touch Installer
+echo    MELQ Zero-Touch Installer
 echo ====================================
 echo.
 echo This will install MELQ - Quantum-Secure P2P Chat
@@ -19,10 +19,10 @@ if exist "src\index.js" (
 )
 
 echo What this installer will do:
-echo • Check if Node.js is installed (install if needed)
-echo • Download MELQ source code
-echo • Install dependencies
-echo • Set up global 'melq' command
+echo - Check if Node.js is installed (install if needed)
+echo - Download MELQ source code
+echo - Install dependencies
+echo - Set up global 'melq' command
 echo.
 
 echo Note: For automated installation, you can pass any argument to skip prompts
@@ -43,7 +43,7 @@ echo.
 REM Check if Node.js is installed
 node --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Node.js is not installed!
+    echo [X] Node.js is not installed!
     echo.
     echo Node.js is required to run MELQ.
     set /p install_node="Would you like to download and install Node.js? (y/n): "
@@ -91,7 +91,7 @@ if %MAJOR_VERSION% LSS 16 (
     )
 )
 
-echo ✅ Node.js %NODE_VERSION% found
+echo [OK] Node.js %NODE_VERSION% found
 
 REM Check for git
 git --version >nul 2>&1
@@ -120,7 +120,7 @@ if errorlevel 1 (
     )
 )
 
-echo ✅ Git found
+echo [OK] Git found
 echo.
 
 REM Create installation directory
@@ -154,7 +154,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo ✅ MELQ downloaded successfully
+echo [OK] MELQ downloaded successfully
 echo.
 
 REM Change to installation directory
@@ -171,7 +171,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo ✅ Dependencies installed
+echo [OK] Dependencies installed
 echo.
 
 REM Install globally
@@ -188,16 +188,16 @@ if errorlevel 1 (
     goto success
 )
 
-echo ✅ MELQ installed globally
+echo [OK] MELQ installed globally
 echo.
 
 REM Test installation
 echo 🧪 Testing installation...
 melq --version >nul 2>&1
 if not errorlevel 1 (
-    echo ✅ Installation successful!
+    echo [OK] Installation successful!
     echo.
-    echo 🎉 You can now run MELQ from anywhere with:
+    echo You can now run MELQ from anywhere with:
     echo    melq                    # Interactive menu
     echo    melq --host             # Host a network
     echo    melq --join ^<code^>      # Join a network
