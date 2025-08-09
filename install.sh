@@ -10,13 +10,13 @@ interactive_prompt() {
     local prompt="$1"
     local default="$2"
     
-    if [ -t 0 ]; then
+    if ! [ -t 0 ]; then
+        # Non-interactive mode (piped) - use default
+        echo "$default"
+    else
         # Interactive mode
         read -p "$prompt" response
         echo "$response"
-    else
-        # Non-interactive mode - use default
-        echo "$default"
     fi
 }
 
