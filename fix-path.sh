@@ -16,8 +16,29 @@ fi
 
 # Check if npm is available
 if ! command -v npm &> /dev/null; then
-    echo "❌ npm not found. Please install Node.js first."
-    exit 1
+    echo "⚠️  npm not found. Trying to load Node.js environment..."
+    
+    # Try to load nvm
+    export NVM_DIR="$HOME/.nvm"
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        echo "🔄 Loading nvm..."
+        \. "$NVM_DIR/nvm.sh"
+        
+        # Check if npm is now available
+        if command -v npm &> /dev/null; then
+            echo "✅ npm loaded successfully!"
+        else
+            echo "❌ npm still not found after loading nvm."
+            echo "💡 Please run: source ~/.bashrc"
+            echo "   Then try: ./fix-path.sh again"
+            echo "   Or run directly: node src/index.js"
+            exit 1
+        fi
+    else
+        echo "❌ nvm not found. Please install Node.js first."
+        echo "💡 Or run directly: node src/index.js"
+        exit 1
+    fi
 fi
 
 # Get npm global prefix

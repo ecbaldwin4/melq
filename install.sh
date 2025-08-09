@@ -335,23 +335,31 @@ If 'melq' command is not found:
 
 🔧 Quick fixes (try in order):
 
-1. Run the PATH fix script:
+1. Load Node.js environment:
+   source ~/.bashrc
+   (or restart terminal)
+
+2. Check if Node.js is available:
+   node --version
+   npm --version
+
+3. If npm not found, load nvm manually:
+   export NVM_DIR="$HOME/.nvm"
+   [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+4. Run the PATH fix script:
    ./fix-path.sh
 
-2. If fix-path.sh doesn't exist:
+5. If fix-path.sh doesn't exist:
    curl -o fix-path.sh https://raw.githubusercontent.com/ecbaldwin4/melq/master/fix-path.sh
    chmod +x fix-path.sh
    ./fix-path.sh
 
-3. Run MELQ directly:
+6. Run MELQ directly:
    node src/index.js
 
-4. Use npm script:
+7. Use npm script:
    npm start
-
-5. Manual PATH fix:
-   export PATH="$(npm config get prefix)/bin:$PATH"
-   echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.bashrc
 
 For help: https://github.com/ecbaldwin4/melq
 TROUBLESHOOT_EOF
@@ -468,9 +476,9 @@ echo "📖 For help visit: https://github.com/ecbaldwin4/melq"
 echo
 echo "📝 IMPORTANT: If 'melq' command is not found:"
 echo "   📁 See troubleshooting: cat $INSTALL_DIR/TROUBLESHOOTING.txt"
-echo "   🔧 Quick fix: cd $INSTALL_DIR && ./fix-path.sh"
+echo "   🔄 Load Node.js: source ~/.bashrc (or restart terminal)"
+echo "   🔧 Then fix PATH: cd $INSTALL_DIR && ./fix-path.sh"
 echo "   💡 Or run directly: cd $INSTALL_DIR && node src/index.js"
-echo "   📚 Or use npm: cd $INSTALL_DIR && npm start"
 echo
 
 echo
