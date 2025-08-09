@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
 echo ====================================
 echo    MELQ Zero-Touch Installer
@@ -26,6 +26,7 @@ echo - Set up global 'melq' command
 echo.
 
 echo Note: For automated installation, you can pass any argument to skip prompts
+set confirm=n
 if "%~1"=="" (
     set /p confirm="Continue with installation? (y/n): "
 ) else (
@@ -33,7 +34,7 @@ if "%~1"=="" (
     set confirm=y
 )
 
-if /i not "!confirm!"=="y" (
+if /i not "%confirm%"=="y" (
     echo Installation cancelled.
     pause
     exit /b 0
@@ -56,7 +57,7 @@ if errorlevel 1 (
         set install_node=y
     )
     
-    if /i "!install_node!"=="y" (
+    if /i "%install_node%"=="y" (
         echo.
         echo Installing Node.js using Chocolatey...
         echo.
@@ -125,10 +126,13 @@ if errorlevel 1 (
 
 REM Get Node.js version and check if it's new enough
 for /f "tokens=*" %%i in ('node --version') do set NODE_VERSION_FULL=%%i
-REM Extract major version number (skip 'v' prefix)
-for /f "tokens=1 delims=." %%a in ('node --version ^| findstr /r "^v[0-9]"') do (
-    set MAJOR_VERSION_WITH_V=%%a
-    set MAJOR_VERSION=!MAJOR_VERSION_WITH_V:~1!
+REM Extract major version number (skip 'v' prefix) - use findstr to remove 'v'
+for /f "tokens=1 delims=." %%a in ('node --version ^| findstr /r "^v[0-9]" ^| findstr /r "[0-9]"') do (
+    set MAJOR_VERSION=%%a
+)
+REM If that didn't work, try a different approach
+if not defined MAJOR_VERSION (
+    for /f "tokens=2 delims=v." %%a in ('node --version') do set MAJOR_VERSION=%%a
 )
 
 if %MAJOR_VERSION% LSS 16 (
@@ -142,7 +146,7 @@ if %MAJOR_VERSION% LSS 16 (
         set update_node=y
     )
     
-    if /i "!update_node!"=="y" (
+    if /i "%update_node%"=="y" (
         echo.
         echo Upgrading Node.js using Chocolatey...
         echo.
@@ -210,7 +214,7 @@ if errorlevel 1 (
     echo.
     set /p install_git="Would you like to download and install Git? (y/n): "
     
-    if /i "!install_git!"=="y" (
+    if /i "%install_git%"=="y" (
         echo 🌐 Opening Git download page...
         echo Please download and install Git, then restart this installer.
         start https://git-scm.com/download/win
@@ -240,7 +244,7 @@ if exist "%INSTALL_DIR%" (
     echo ⚠️  MELQ directory already exists at %INSTALL_DIR%
     set /p overwrite="Remove existing installation and reinstall? (y/n): "
     
-    if /i "!overwrite!"=="y" (
+    if /i "%overwrite%"=="y" (
         echo Removing existing installation...
         rmdir /s /q "%INSTALL_DIR%"
     ) else (
@@ -332,19 +336,19 @@ if /i "%fix_path%"=="y" (
     
     REM Get npm global bin directory (works with both old and new npm versions)
     for /f "tokens=*" %%i in ('npm bin -g 2^>nul') do set NPM_BIN=%%i
-    if "!NPM_BIN!"=="" (
+    if "%NPM_BIN%"=="" (
         REM Try newer npm method
         for /f "tokens=*" %%i in ('npm prefix -g 2^>nul') do set NPM_PREFIX=%%i
-        if not "!NPM_PREFIX!"=="" (
-            set NPM_BIN=!NPM_PREFIX!\bin
+        if not "%NPM_PREFIX%"=="" (
+            call set NPM_BIN=%NPM_PREFIX%\bin
         )
     )
     
-    if not "!NPM_BIN!"=="" (
-        echo Adding !NPM_BIN! to system PATH...
+    if not "%NPM_BIN%"=="" (
+        echo Adding %NPM_BIN% to system PATH...
         
         REM Add to system PATH (requires admin, but we'll try)
-        setx PATH "%PATH%;!NPM_BIN!" >nul 2>&1
+        setx PATH "%PATH%;%NPM_BIN%" >nul 2>&1
         
         if not errorlevel 1 (
             echo ✅ Successfully added to system PATH
@@ -359,7 +363,7 @@ if /i "%fix_path%"=="y" (
             echo.
             echo Manual steps:
             echo 1. Open "Environment Variables" in Windows settings
-            echo 2. Add this to your PATH: !NPM_BIN!
+            echo 2. Add this to your PATH: %NPM_BIN%
             echo 3. Restart your command prompt
         )
     ) else (
