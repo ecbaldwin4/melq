@@ -63,7 +63,7 @@ if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed!"
     echo
     echo "Node.js is required to run MELQ."
-    install_node=$(interactive_prompt "Would you like to install Node.js using nvm? (y/n): " "n")
+    install_node=$(interactive_prompt "Would you like to install Node.js using nvm? (y/n): " "y")
     
     if [[ $install_node =~ ^[Yy]$ ]]; then
         echo
@@ -137,7 +137,7 @@ if [ "$MAJOR_VERSION" -lt "16" ]; then
     echo "⚠️  Node.js version $NODE_VERSION is too old"
     echo "MELQ requires Node.js 16 or newer"
     echo
-    update_node=$(interactive_prompt "Would you like to upgrade Node.js using nvm? (y/n): " "n")
+    update_node=$(interactive_prompt "Would you like to upgrade Node.js using nvm? (y/n): " "y")
     
     if [[ $update_node =~ ^[Yy]$ ]]; then
         echo
@@ -189,10 +189,54 @@ if ! command -v git &> /dev/null; then
     echo "⚠️  Git is not installed."
     echo "Git is needed to download MELQ."
     echo
-    install_git=$(interactive_prompt "Would you like installation instructions? (y/n): " "n")
+    echo "AUTOMATED INSTALLATION ATTEMPT:"
+    echo "Trying to install Git automatically..."
     
-    if [[ $install_git =~ ^[Yy]$ ]]; then
+    git_installed=false
+    
+    # Try automated installation based on OS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS - try homebrew
+        if command -v brew &> /dev/null; then
+            echo "📦 Detected macOS with Homebrew..."
+            if brew install git; then
+                echo "✅ Git installed successfully via Homebrew!"
+                git_installed=true
+            fi
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux - detect package manager
+        if command -v apt-get &> /dev/null; then
+            echo "📦 Detected Ubuntu/Debian - using apt..."
+            if sudo apt update && sudo apt install -y git; then
+                echo "✅ Git installed successfully via apt!"
+                git_installed=true
+            fi
+        elif command -v yum &> /dev/null; then
+            echo "📦 Detected CentOS/RHEL - using yum..."
+            if sudo yum install -y git; then
+                echo "✅ Git installed successfully via yum!"
+                git_installed=true
+            fi
+        elif command -v dnf &> /dev/null; then
+            echo "📦 Detected Fedora - using dnf..."
+            if sudo dnf install -y git; then
+                echo "✅ Git installed successfully via dnf!"
+                git_installed=true
+            fi
+        elif command -v pacman &> /dev/null; then
+            echo "📦 Detected Arch Linux - using pacman..."
+            if sudo pacman -S --noconfirm git; then
+                echo "✅ Git installed successfully via pacman!"
+                git_installed=true
+            fi
+        fi
+    fi
+    
+    if [ "$git_installed" = false ]; then
+        echo "❌ Automated Git installation failed or not supported."
         echo
+        echo "MANUAL INSTALLATION REQUIRED:"
         echo "Please install Git using one of these methods:"
         echo
         
@@ -212,13 +256,15 @@ if ! command -v git &> /dev/null; then
         fi
         echo
         echo "After installing Git, run this installer again."
-    else
         echo
         echo "Alternative: You can also download MELQ manually from:"
         echo "https://github.com/ecbaldwin4/melq/archive/refs/heads/master.zip"
         echo "Extract it and run install-linux.sh from inside the folder."
+        exit 1
     fi
-    exit 1
+    
+    echo "🔄 Continuing with MELQ installation..."
+    echo
 fi
 
 echo "✅ Git found"

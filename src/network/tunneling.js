@@ -18,9 +18,10 @@ export class TunnelingService {
     
     console.log(chalk.yellow('🌐 Setting up internet access...'));
     
-    if (preferredMethod === 'manual' || preferredMethod === 'auto') {
-      const manualUrl = await this.tryManualSetup(localPort, customDomain);
-      if (manualUrl) return manualUrl;
+    // Try automatic tunnel services first in auto mode
+    if (preferredMethod === 'localtunnel' || preferredMethod === 'auto') {
+      const ltUrl = await this.tryLocalTunnel(localPort);
+      if (ltUrl) return ltUrl;
     }
     
     if (preferredMethod === 'ngrok' || preferredMethod === 'auto') {
@@ -28,20 +29,24 @@ export class TunnelingService {
       if (ngrokUrl) return ngrokUrl;
     }
     
-    if (preferredMethod === 'localtunnel' || preferredMethod === 'auto') {
-      const ltUrl = await this.tryLocalTunnel(localPort);
-      if (ltUrl) return ltUrl;
-    }
-    
     if (preferredMethod === 'serveo' || preferredMethod === 'auto') {
       const serveoUrl = await this.tryServeo(localPort);
       if (serveoUrl) return serveoUrl;
     }
     
-    throw new Error('No tunneling method available. Try manual setup or install ngrok.');
+    // Try manual setup last (only if specifically requested or as final fallback)
+    if (preferredMethod === 'manual') {
+      const manualUrl = await this.tryManualSetup(localPort, customDomain, false);
+      if (manualUrl) return manualUrl;
+    } else if (preferredMethod === 'auto') {
+      // In auto mode, don't use manual setup as fallback since it requires port forwarding
+      console.log(chalk.yellow('⚠️  All automatic tunnel services failed. Consider using --tunnel manual for port forwarding setup.'));
+    }
+    
+    throw new Error('No tunneling method available. Install localtunnel, ngrok, or try manual setup.');
   }
 
-  async tryManualSetup(localPort, customDomain) {
+  async tryManualSetup(localPort, customDomain, isAutoMode = false) {
     if (customDomain) {
       console.log(chalk.blue(`📡 Using custom domain: ${customDomain}`));
       this.method = 'manual';
@@ -53,7 +58,13 @@ export class TunnelingService {
       };
     }
     
-    // Try to detect public IP
+    // In auto mode, don't automatically use manual setup - only if explicitly requested
+    if (isAutoMode) {
+      console.log(chalk.gray('Skipping manual setup in auto mode (use --tunnel manual to force)'));
+      return null;
+    }
+    
+    // Try to detect public IP (only when manually requested)
     try {
       const response = await fetch('https://api.ipify.org?format=text', { timeout: 5000 });
       const publicIp = await response.text();
@@ -225,57 +236,53 @@ export class TunnelingService {
 
   async tryLocalTunnel(localPort) {
     try {
-      console.log(chalk.gray('Trying localtunnel...'));
+      console.log(chalk.yellow('🔧 Trying localtunnel...'));
       
-      // Try to install localtunnel if not available
+      // Import localtunnel module directly (no need to spawn process)
+      let localtunnel;
       try {
-        await execAsync('npx localtunnel --version');
+        localtunnel = (await import('localtunnel')).default;
+        console.log(chalk.gray('✓ localtunnel module found'));
       } catch (error) {
-        console.log(chalk.gray('localtunnel not available, skipping...'));
+        console.log(chalk.red('❌ localtunnel module not found:'), error.message);
+        console.log(chalk.yellow('💡 Run "npm install localtunnel" to enable this feature'));
         return null;
       }
       
-      this.activeProcess = spawn('npx', ['localtunnel', '--port', localPort.toString()], {
-        stdio: ['ignore', 'pipe', 'pipe']
+      // Create tunnel using the module API
+      console.log(chalk.yellow(`🔧 Creating localtunnel on port ${localPort}...`));
+      
+      // Add timeout to prevent hanging
+      const tunnelPromise = localtunnel({ 
+        port: localPort,
+        subdomain: undefined // Let localtunnel assign a random subdomain
       });
       
-      return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          this.cleanup();
-          resolve(null);
-        }, 15000);
-        
-        this.activeProcess.stdout.on('data', (data) => {
-          const text = data.toString();
-          const urlMatch = text.match(/https:\/\/[\\w\\.-]+\\.loca\\.lt/);
-          
-          if (urlMatch) {
-            clearTimeout(timeout);
-            const publicUrl = urlMatch[0];
-            this.publicUrl = publicUrl;
-            this.method = 'localtunnel';
-            
-            console.log(chalk.green('✅ Localtunnel established!'));
-            console.log(chalk.blue(`📡 Public URL: ${publicUrl}`));
-            
-            resolve({
-              publicUrl,
-              connectionCode: publicUrl.replace('https://', 'melq://'),
-              method: 'localtunnel'
-            });
-          }
-        });
-        
-        this.activeProcess.on('error', () => {
-          clearTimeout(timeout);
-          resolve(null);
-        });
-        
-        this.activeProcess.on('exit', () => {
-          clearTimeout(timeout);
-          resolve(null);
-        });
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Localtunnel timeout after 15 seconds')), 15000);
       });
+      
+      const tunnel = await Promise.race([tunnelPromise, timeoutPromise]);
+      
+      this.activeProcess = tunnel; // Store tunnel instance for cleanup
+      const publicUrl = tunnel.url;
+      
+      if (!publicUrl) {
+        throw new Error('Localtunnel created but no URL returned');
+      }
+      
+      this.publicUrl = publicUrl;
+      this.method = 'localtunnel';
+      
+      console.log(chalk.green('✅ Localtunnel established!'));
+      console.log(chalk.blue(`📡 Public URL: ${publicUrl}`));
+      console.log(chalk.cyan('💡 No account required - tunnel ready to use!'));
+      
+      return {
+        publicUrl,
+        connectionCode: publicUrl.replace('https://', 'melq://'),
+        method: 'localtunnel'
+      };
       
     } catch (error) {
       console.log(chalk.gray('localtunnel failed:', error.message));
@@ -345,8 +352,12 @@ export class TunnelingService {
       console.log(chalk.gray('Stopping tunneling service...'));
       
       try {
-        // For ngrok, try graceful shutdown first
-        if (this.method === 'ngrok') {
+        if (this.method === 'localtunnel') {
+          // For localtunnel, close the tunnel instance
+          this.activeProcess.close();
+          console.log(chalk.gray('✓ Localtunnel closed'));
+        } else if (this.method === 'ngrok') {
+          // For ngrok, try graceful shutdown first
           this.activeProcess.kill('SIGTERM');
           
           // If process doesn't exit gracefully, force kill after 3 seconds
@@ -357,6 +368,7 @@ export class TunnelingService {
             }
           }, 3000);
         } else {
+          // For other spawn processes
           this.activeProcess.kill();
         }
         
