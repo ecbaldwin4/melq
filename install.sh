@@ -234,7 +234,7 @@ echo
 
 # Test installation
 echo "🧪 Testing installation..."
-if command -v melq &> /dev/null && [ -z "$goto_success" ]; then
+if command -v melq &> /dev/null; then
     echo "✅ Installation successful!"
     echo
     echo "🎉 You can now run MELQ from anywhere with:"
@@ -244,62 +244,62 @@ if command -v melq &> /dev/null && [ -z "$goto_success" ]; then
     echo "   melq --help             # Show help"
     echo
 else
-    if [ -z "$goto_success" ]; then
-        echo "⚠️  Installation completed, but 'melq' command not found in PATH"
-        echo
-        echo "🔧 Trying to fix PATH automatically..."
+    echo "⚠️  'melq' command not found in PATH"
+    echo
+    echo "🔧 Fixing PATH automatically..."
+    
+    # Get npm global bin directory (works with both old and new npm versions)
+    NPM_BIN=""
+    NPM_BIN=$(npm bin -g 2>/dev/null || echo "")
+    if [ -z "$NPM_BIN" ]; then
+        # Try newer npm method
+        NPM_PREFIX=$(npm prefix -g 2>/dev/null)
+        if [ -n "$NPM_PREFIX" ]; then
+            NPM_BIN="$NPM_PREFIX/bin"
+        fi
+    fi
+    
+    if [ -n "$NPM_BIN" ] && [ -f "$NPM_BIN/melq" ]; then
+        echo "Found melq at: $NPM_BIN/melq"
         
-        # Get npm global bin directory (works with both old and new npm versions)
-        NPM_BIN=$(npm bin -g 2>/dev/null || echo "")
-        if [ -z "$NPM_BIN" ]; then
-            # Try newer npm method
-            NPM_PREFIX=$(npm prefix -g 2>/dev/null)
-            if [ -n "$NPM_PREFIX" ]; then
-                NPM_BIN="$NPM_PREFIX/bin"
-            fi
+        # Add to current session PATH
+        export PATH="$NPM_BIN:$PATH"
+        echo "✅ Added to current session PATH"
+        
+        # Automatically add to shell profile in non-interactive mode
+        SHELL_PROFILE=""
+        if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
+            SHELL_PROFILE="$HOME/.bashrc"
+        elif [ -f "$HOME/.zshrc" ]; then
+            SHELL_PROFILE="$HOME/.zshrc"
+        elif [ -f "$HOME/.profile" ]; then
+            SHELL_PROFILE="$HOME/.profile"
         fi
         
-        if [ -n "$NPM_BIN" ]; then
-            echo "Adding $NPM_BIN to PATH..."
-            
-            # Add to current session
-            export PATH="$NPM_BIN:$PATH"
-            
-            # Try to add to shell profile
-            SHELL_PROFILE=""
-            if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
-                SHELL_PROFILE="$HOME/.bashrc"
-            elif [ -f "$HOME/.zshrc" ]; then
-                SHELL_PROFILE="$HOME/.zshrc"
-            elif [ -f "$HOME/.profile" ]; then
-                SHELL_PROFILE="$HOME/.profile"
-            fi
-            
-            if [ -n "$SHELL_PROFILE" ]; then
-                # Check if PATH export already exists
-                if ! grep -q "export PATH.*npm bin -g" "$SHELL_PROFILE" 2>/dev/null; then
-                    add_to_profile=$(interactive_prompt "Add to $SHELL_PROFILE for future terminals? (y/n): " "y")
-                    if [[ $add_to_profile =~ ^[Yy]$ ]]; then
-                        echo "" >> "$SHELL_PROFILE"
-                        echo "# Added by MELQ installer" >> "$SHELL_PROFILE"
-                        echo "export PATH=\"\$(npm bin -g 2>/dev/null || echo \$(npm prefix -g 2>/dev/null)/bin):\$PATH\"" >> "$SHELL_PROFILE"
-                        echo "✅ Added to $SHELL_PROFILE"
-                        echo "   (will take effect in new terminals)"
-                    fi
+        if [ -n "$SHELL_PROFILE" ]; then
+            # Check if PATH export already exists
+            if ! grep -q "npm.*global.*bin" "$SHELL_PROFILE" 2>/dev/null; then
+                add_to_profile=$(interactive_prompt "Add to $SHELL_PROFILE for future terminals? (y/n): " "y")
+                if [[ $add_to_profile =~ ^[Yy]$ ]]; then
+                    echo "" >> "$SHELL_PROFILE"
+                    echo "# Added by MELQ installer" >> "$SHELL_PROFILE"
+                    echo "export PATH=\"$NPM_BIN:\$PATH\"" >> "$SHELL_PROFILE"
+                    echo "✅ Added to $SHELL_PROFILE"
                 fi
             fi
-            
-            # Test if melq command now works
-            if command -v melq &> /dev/null; then
-                echo "✅ 'melq' command is now available!"
-            else
-                echo "⚠️  Please restart your terminal or run:"
-                echo "   export PATH=\"\$(npm bin -g):\$PATH\""
-            fi
-        else
-            echo "❌ Could not determine npm global bin directory"
-            echo "   Please run: npm start (from $INSTALL_DIR)"
         fi
+        
+        # Test again
+        if command -v melq &> /dev/null; then
+            echo "✅ 'melq' command is now available!"
+        else
+            echo "⚠️  PATH updated, but may need to restart terminal"
+            echo "   Or run: export PATH=\"$NPM_BIN:\$PATH\""
+        fi
+    else
+        echo "❌ Could not find melq executable"
+        echo "   You can run MELQ from: $INSTALL_DIR"
+        echo "   Command: cd $INSTALL_DIR && npm start"
     fi
 fi
 
