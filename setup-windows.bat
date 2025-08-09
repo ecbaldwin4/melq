@@ -1,7 +1,10 @@
 @echo off
 echo ====================================
-echo    MELQ Setup for Windows
+echo    MELQ Quick Setup for Windows
 echo ====================================
+echo.
+echo This is the quick setup script.
+echo For full installation, use install-windows.bat instead.
 echo.
 
 echo Checking Node.js installation...
@@ -31,10 +34,13 @@ if errorlevel 1 (
 echo.
 echo ✅ Setup complete!
 echo.
-echo To join a network, run:
-echo   npm start
+echo 🚀 For full installation (global 'melq' command):
+echo    Run: install-windows.bat
 echo.
-echo Or use the connection code directly:
-echo   npm start -- --join YOUR_CONNECTION_CODE
+echo 📁 To use locally:
+echo    npm start
+echo.
+echo 🔗 To join with connection code:
+echo    npm start -- --join YOUR_CONNECTION_CODE
 echo.
 pause

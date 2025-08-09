@@ -4,6 +4,9 @@
   "description": "Quantum-secure P2P chat - Host or join networks easily",
   "main": "src/index.js",
   "type": "module",
+  "bin": {
+    "melq": "./bin/melq.js"
+  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",

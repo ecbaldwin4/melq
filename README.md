@@ -13,51 +13,57 @@ A secure peer-to-peer chat system with a directory-like CLI interface. Uses ngro
 - **⚡ Smart Discovery**: Automatic peer discovery and connection
 - **🎨 Rich Interface**: Loading animations, status indicators, and intuitive commands
 
-## Setup
+## Quick Start
 
-1. Install dependencies:
+### 🚀 Easy Installation (Recommended)
+
+**Windows Users:**
+1. Download and run `install-windows.bat`
+2. Type `melq` anywhere to start!
+
+**Linux/macOS Users:**
+1. Run: `./install-linux.sh`
+2. Type `melq` anywhere to start!
+
+### 📦 Manual Installation
+
+If the quick install doesn't work:
+
+1. Install Node.js (version 16 or newer) from https://nodejs.org/
+2. Install dependencies:
    ```bash
    npm install
    ```
-
-2. Install ngrok (if not already installed):
+3. Start MELQ:
    ```bash
-   # Download from https://ngrok.com/download
-   # Or use package managers:
-   npm install -g ngrok
-   # or
-   brew install ngrok
+   npm start
    ```
 
 ## Usage
 
-### 1. Start the Coordination Server
-
-In one terminal:
+After installation, simply run:
 ```bash
-npm run coordinator
+melq
 ```
 
-This starts the coordination server on port 3000.
+This opens the beautiful interactive menu:
+```
+🔐 MELQ - Quantum-Secure P2P Chat
+══════════════════════════════════════════════════
 
-### 2. Expose Server with ngrok
-
-In another terminal:
-```bash
-ngrok http 3000
+What would you like to do?
+1. 🏠 Host a new network (others can join you)
+2. 🔗 Join an existing network  
+3. 🔍 Discover local networks
+4. ❓ Help
 ```
 
-Note the ngrok URL (e.g., `https://abc123.ngrok.io`)
+### Advanced Usage
 
-### 3. Start Chat Clients
-
-In separate terminals, start chat clients:
 ```bash
-# Client 1
-npm start -- --coordinator wss://abc123.ngrok.io/ws
-
-# Client 2  
-npm start -- --coordinator wss://abc123.ngrok.io/ws
+melq --host          # Directly host a network
+melq --join <code>   # Join with connection code
+melq --help          # Show all options
 ```
 
 ## Commands
@@ -128,11 +134,35 @@ What would you like to do?
 🟢 > 
 ```
 
-## Example Session
+## Getting Started
+
+### For Non-Technical Users
+
+1. **Download**: Get the install script for your system
+   - Windows: Download `install-windows.bat` and double-click it
+   - Linux/macOS: Download `install-linux.sh` and run it in terminal
+
+2. **Install**: The script will:
+   - Check if you have Node.js (installs if needed)
+   - Set up MELQ globally
+   - Test the installation
+
+3. **Run**: Open any terminal/command prompt and type:
+   ```
+   melq
+   ```
+
+4. **Start Chatting**: Choose option 1 to host, or option 2 to join someone else
+
+### Example Session
 
 ```bash
-# Start MELQ
-npm start
+# Start MELQ (after installation)
+melq
+
+# Choose "Host a network" from menu
+# MELQ automatically sets up secure connection and shows your connection code
+# Share the code with friends so they can join!
 
 # Navigate and create chats
 [abc12345] /$ ls
@@ -170,10 +200,43 @@ npm start
 - **CLI Interface**: Directory-like navigation for chats
 - **Crypto Layer**: MLKEM + AES-256 for security
 
+## Troubleshooting
+
+### Installation Issues
+
+**"Node.js not found"**
+- Install Node.js from https://nodejs.org/ (choose LTS version)
+- Restart your terminal/command prompt after installation
+
+**"melq command not found"**
+- Run the install script again
+- Try restarting your terminal
+- On Linux/macOS, you may need: `export PATH=$(npm bin -g):$PATH`
+
+**"Permission denied" (Linux/macOS)**
+- The install script will try `sudo npm link` automatically
+- You can also run: `sudo ./install-linux.sh`
+
+### Connection Issues
+
+**"Failed to create tunnel"**
+- Check your internet connection
+- MELQ will try multiple tunnel services automatically
+- If all fail, it will provide manual setup instructions
+
 ## Development
 
-Run in development mode:
+For developers who want to modify MELQ:
+
 ```bash
+# Clone the repository
+git clone <repo-url>
+cd melq
+
+# Install dependencies
+npm install
+
+# Run in development mode
 npm run dev
 ```
 
@@ -184,6 +247,7 @@ The system consists of:
 - `src/crypto/aes.js` - AES encryption
 - `src/cli/interface.js` - CLI interface
 - `src/index.js` - Main application
+- `bin/melq.js` - Global CLI entry point
 
 ## Notes
 
