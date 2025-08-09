@@ -30,7 +30,7 @@ echo
 # Check if running from correct location
 if [ -f "src/index.js" ]; then
     echo "⚠️  It looks like you're already in the MELQ directory."
-    echo "Please run install-linux.sh instead."
+    echo "Please run npm start instead from inside the MELQ directory."
     echo
     exit 1
 fi
@@ -259,7 +259,7 @@ if ! command -v git &> /dev/null; then
         echo
         echo "Alternative: You can also download MELQ manually from:"
         echo "https://github.com/ecbaldwin4/melq/archive/refs/heads/master.zip"
-        echo "Extract it and run install-linux.sh from inside the folder."
+        echo "Extract it and run npm start from inside the folder."
         exit 1
     fi
     

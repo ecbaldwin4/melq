@@ -18,7 +18,7 @@ echo.
 REM Check if running from correct location
 if exist "src\index.js" (
     echo ⚠️  It looks like you're already in the MELQ directory.
-    echo Please run install-windows.bat instead.
+    echo Please run npm start instead from inside the MELQ directory.
     echo.
     pause
     exit /b 1
@@ -191,7 +191,7 @@ if errorlevel 1 (
         echo.
         echo Alternative: You can also download MELQ manually from:
         echo https://github.com/ecbaldwin4/melq/archive/refs/heads/master.zip
-        echo Extract it and run install-windows.bat from inside the folder.
+        echo Extract it and run npm start from inside the folder.
         echo.
         pause
         exit /b 1

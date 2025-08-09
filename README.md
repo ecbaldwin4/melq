@@ -284,7 +284,7 @@ melq
 
 **"Permission denied" (Linux/macOS)**
 - The install script will try `sudo npm link` automatically
-- You can also run: `sudo ./install-linux.sh`
+- Or if already downloaded: `cd melq && npm start`
 
 ### Connection Issues
 

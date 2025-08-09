@@ -17,12 +17,12 @@ Your friend needs:
 
 ### Step 2: Setup MELQ
 1. Open the MELQ folder you received
-2. **Double-click** `setup-windows.bat`
-3. Wait for installation to complete
-4. Press any key when it says "Setup complete!"
+2. **Hold Shift + Right-click** in empty space → "Open PowerShell window here"
+3. **Type:** `npm install` and press Enter
+4. Wait for installation to complete
 
 ### Step 3: Run MELQ
-1. **Double-click** `run-windows.bat` to start MELQ
+1. **Type:** `npm start` and press Enter
 2. Choose option **2** to join a network
 3. Enter the connection code you provide
 
@@ -57,7 +57,7 @@ Connection code: [PASTE YOUR CODE HERE]
 
 ### "Failed to install dependencies"  
 - Check internet connection
-- Right-click `setup-windows.bat` → "Run as administrator"
+- Open PowerShell as administrator and run `npm install`
 
 ### "Connection failed"
 - Check the connection code is correct
