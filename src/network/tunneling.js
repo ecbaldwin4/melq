@@ -94,7 +94,12 @@ export class TunnelingService {
 
       // Kill any existing ngrok processes to avoid session limit error
       try {
-        await execAsync('pkill -f ngrok');
+        const isWindows = process.platform === 'win32';
+        const killCommand = isWindows 
+          ? 'taskkill /f /im ngrok.exe' 
+          : 'pkill -f ngrok';
+        
+        await execAsync(killCommand);
         console.log(chalk.gray('✓ Cleaned up existing ngrok processes'));
         // Wait a moment for processes to fully terminate
         await new Promise(resolve => setTimeout(resolve, 1000));

@@ -429,13 +429,32 @@ async function fallbackClientSpawn(networkInfo) {
     // Try to spawn a new terminal with melq client
     const connectionCode = networkInfo.localConnectionCode || networkInfo.internetConnectionCode;
     
-    // Try common terminal emulators
-    const terminals = [
-      { cmd: 'gnome-terminal', args: ['--', 'node', 'src/index.js', '--join', connectionCode] },
-      { cmd: 'xterm', args: ['-e', `node src/index.js --join ${connectionCode}`] },
-      { cmd: 'konsole', args: ['-e', `node src/index.js --join ${connectionCode}`] },
-      { cmd: 'terminal', args: ['-e', `node src/index.js --join ${connectionCode}`] }
-    ];
+    // Try common terminal emulators based on platform
+    const isWindows = process.platform === 'win32';
+    const isMac = process.platform === 'darwin';
+    
+    let terminals = [];
+    
+    if (isWindows) {
+      terminals = [
+        { cmd: 'wt', args: ['node', 'src/index.js', '--join', connectionCode] }, // Windows Terminal
+        { cmd: 'powershell', args: ['-Command', `node src/index.js --join ${connectionCode}`] },
+        { cmd: 'cmd', args: ['/c', `start cmd /k "node src/index.js --join ${connectionCode}"`] }
+      ];
+    } else if (isMac) {
+      terminals = [
+        { cmd: 'osascript', args: ['-e', `tell application "Terminal" to do script "cd '${process.cwd()}' && node src/index.js --join ${connectionCode}"`] },
+        { cmd: 'open', args: ['-a', 'Terminal', '.'] }
+      ];
+    } else {
+      // Linux/Unix
+      terminals = [
+        { cmd: 'gnome-terminal', args: ['--', 'node', 'src/index.js', '--join', connectionCode] },
+        { cmd: 'xterm', args: ['-e', `node src/index.js --join ${connectionCode}`] },
+        { cmd: 'konsole', args: ['-e', `node src/index.js --join ${connectionCode}`] },
+        { cmd: 'x-terminal-emulator', args: ['-e', `node src/index.js --join ${connectionCode}`] }
+      ];
+    }
     
     let spawned = false;
     for (const terminal of terminals) {
