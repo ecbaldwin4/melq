@@ -325,6 +325,37 @@ else
 fi
 
 echo "✅ Dependencies installed and secured"
+
+# Create a troubleshooting file with instructions
+cat > "TROUBLESHOOTING.txt" << 'TROUBLESHOOT_EOF'
+MELQ Installation Troubleshooting
+==================================
+
+If 'melq' command is not found:
+
+🔧 Quick fixes (try in order):
+
+1. Run the PATH fix script:
+   ./fix-path.sh
+
+2. If fix-path.sh doesn't exist:
+   curl -o fix-path.sh https://raw.githubusercontent.com/ecbaldwin4/melq/master/fix-path.sh
+   chmod +x fix-path.sh
+   ./fix-path.sh
+
+3. Run MELQ directly:
+   node src/index.js
+
+4. Use npm script:
+   npm start
+
+5. Manual PATH fix:
+   export PATH="$(npm config get prefix)/bin:$PATH"
+   echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.bashrc
+
+For help: https://github.com/ecbaldwin4/melq
+TROUBLESHOOT_EOF
+
 echo
 
 # Install globally (link to current directory)
@@ -435,7 +466,8 @@ echo "📖 For help visit: https://github.com/ecbaldwin4/melq"
 
 # Always show path fix instructions (common issue)
 echo
-echo "📝 IMPORTANT: If 'melq' command is not found after installation:"
+echo "📝 IMPORTANT: If 'melq' command is not found:"
+echo "   📁 See troubleshooting: cat $INSTALL_DIR/TROUBLESHOOTING.txt"
 echo "   🔧 Quick fix: cd $INSTALL_DIR && ./fix-path.sh"
 echo "   💡 Or run directly: cd $INSTALL_DIR && node src/index.js"
 echo "   📚 Or use npm: cd $INSTALL_DIR && npm start"
