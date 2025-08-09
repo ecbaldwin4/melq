@@ -1,13 +1,14 @@
 {
   "name": "melq",
   "version": "1.0.0",
-  "description": "Secure P2P chat system with directory-like interface",
+  "description": "Quantum-secure P2P chat - Host or join networks easily",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "coordinator": "node src/coordinator.js"
+    "host": "node src/index.js --host",
+    "join": "node src/index.js --join"
   },
   "dependencies": {
     "chalk": "^5.3.0",
@@ -15,6 +16,7 @@
     "fastify": "^4.25.2",
     "mlkem": "^2.3.1",
     "node-forge": "^1.3.1",
+    "node-fetch": "^3.3.2",
     "readline": "^1.3.0",
     "ws": "^8.16.0"
   },
@@ -22,8 +24,10 @@
     "p2p",
     "chat",
     "encryption",
-    "ngrok",
-    "mlkem"
+    "quantum-secure",
+    "mlkem",
+    "local-discovery",
+    "unified-node"
   ],
   "author": "",
   "license": "MIT"
