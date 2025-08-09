@@ -249,8 +249,15 @@ else
         echo
         echo "🔧 Trying to fix PATH automatically..."
         
-        # Get npm global bin directory
+        # Get npm global bin directory (works with both old and new npm versions)
         NPM_BIN=$(npm bin -g 2>/dev/null || echo "")
+        if [ -z "$NPM_BIN" ]; then
+            # Try newer npm method
+            NPM_PREFIX=$(npm prefix -g 2>/dev/null)
+            if [ -n "$NPM_PREFIX" ]; then
+                NPM_BIN="$NPM_PREFIX/bin"
+            fi
+        fi
         
         if [ -n "$NPM_BIN" ]; then
             echo "Adding $NPM_BIN to PATH..."
@@ -275,7 +282,7 @@ else
                     if [[ $add_to_profile =~ ^[Yy]$ ]]; then
                         echo "" >> "$SHELL_PROFILE"
                         echo "# Added by MELQ installer" >> "$SHELL_PROFILE"
-                        echo "export PATH=\"\$(npm bin -g 2>/dev/null):\$PATH\"" >> "$SHELL_PROFILE"
+                        echo "export PATH=\"\$(npm bin -g 2>/dev/null || echo \$(npm prefix -g 2>/dev/null)/bin):\$PATH\"" >> "$SHELL_PROFILE"
                         echo "✅ Added to $SHELL_PROFILE"
                         echo "   (will take effect in new terminals)"
                     fi

@@ -222,8 +222,15 @@ if /i "%fix_path%"=="y" (
     echo.
     echo 🔧 Trying to fix PATH automatically...
     
-    REM Get npm global bin directory
+    REM Get npm global bin directory (works with both old and new npm versions)
     for /f "tokens=*" %%i in ('npm bin -g 2^>nul') do set NPM_BIN=%%i
+    if "!NPM_BIN!"=="" (
+        REM Try newer npm method
+        for /f "tokens=*" %%i in ('npm prefix -g 2^>nul') do set NPM_PREFIX=%%i
+        if not "!NPM_PREFIX!"=="" (
+            set NPM_BIN=!NPM_PREFIX!\bin
+        )
+    )
     
     if not "!NPM_BIN!"=="" (
         echo Adding !NPM_BIN! to system PATH...
@@ -262,6 +269,8 @@ if /i "%fix_path%"=="y" (
     echo.
     echo Or manually add npm global directory to your PATH:
     for /f "tokens=*" %%i in ('npm bin -g 2^>nul') do echo   %%i
+    REM Try newer npm method if old one didn't work
+    for /f "tokens=*" %%i in ('npm prefix -g 2^>nul') do echo   %%i\bin
 )
 echo.
 
