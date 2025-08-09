@@ -25,7 +25,8 @@
     "ws": "^8.16.0"
   },
   "overrides": {
-    "axios": "^1.7.9"
+    "axios": "^1.7.9",
+    "node-domexception": "^2.0.2"
   },
   "keywords": [
     "p2p",

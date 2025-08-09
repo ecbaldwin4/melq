@@ -313,7 +313,14 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "✅ Dependencies installed"
+# Check for and fix any security vulnerabilities
+echo "🔍 Checking for security issues..."
+if npm audit --audit-level=high | grep -q "vulnerabilities"; then
+    echo "🔧 Fixing security vulnerabilities..."
+    npm audit fix --force --audit-level=high || true
+fi
+
+echo "✅ Dependencies installed and secured"
 echo
 
 # Install globally (link to current directory)
@@ -421,6 +428,18 @@ echo "🚀 MELQ is ready!"
 echo
 echo "📁 Installed in: $INSTALL_DIR"
 echo "📖 For help visit: https://github.com/ecbaldwin4/melq"
+
+# Final check and provide fix script if needed
+if ! command -v melq &> /dev/null; then
+    echo
+    echo "⚠️  If 'melq' command is not found, run this fix:"
+    echo "   cd $INSTALL_DIR && ./fix-path.sh"
+    echo
+    echo "💡 Alternative ways to run MELQ:"
+    echo "   cd $INSTALL_DIR && node src/index.js"
+    echo "   cd $INSTALL_DIR && npm start"
+fi
+
 echo
 
 run_now=$(interactive_prompt "Would you like to start MELQ now? (y/n): " "n")
