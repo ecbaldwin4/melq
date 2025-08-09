@@ -25,11 +25,17 @@ echo • Install dependencies
 echo • Set up global 'melq' command
 echo.
 
-set /p confirm="Continue with installation? (y/n): "
-if /i not "%confirm%"=="y" (
-    echo Installation cancelled.
-    pause
-    exit /b 0
+echo Note: For automated installation, you can pass any argument to skip prompts
+if "%~1"=="" (
+    set /p confirm="Continue with installation? (y/n): "
+    if /i not "!confirm!"=="y" (
+        echo Installation cancelled.
+        pause
+        exit /b 0
+    )
+) else (
+    echo Running in automated mode - proceeding with installation...
+    set confirm=y
 )
 
 echo.

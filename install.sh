@@ -5,6 +5,21 @@
 
 set -e
 
+# Helper function for interactive prompts
+interactive_prompt() {
+    local prompt="$1"
+    local default="$2"
+    
+    if [ -t 0 ]; then
+        # Interactive mode
+        read -p "$prompt" response
+        echo "$response"
+    else
+        # Non-interactive mode - use default
+        echo "$default"
+    fi
+}
+
 echo "🔐 MELQ Zero-Touch Installer"
 echo "=========================================="
 echo
@@ -27,10 +42,17 @@ echo "• Install dependencies"
 echo "• Set up global 'melq' command"
 echo
 
-read -p "Continue with installation? (y/n): " confirm
-if [[ ! $confirm =~ ^[Yy]$ ]]; then
-    echo "Installation cancelled."
-    exit 0
+# Check if running in non-interactive mode (piped)
+if [ -t 0 ]; then
+    # Interactive mode - ask for confirmation
+    read -p "Continue with installation? (y/n): " confirm
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled."
+        exit 0
+    fi
+else
+    # Non-interactive mode (piped) - auto-continue
+    echo "Running in non-interactive mode - proceeding with installation..."
 fi
 
 echo
@@ -40,7 +62,7 @@ if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed!"
     echo
     echo "Node.js is required to run MELQ."
-    read -p "Would you like installation instructions? (y/n): " install_node
+    install_node=$(interactive_prompt "Would you like installation instructions? (y/n): " "n")
     
     if [[ $install_node =~ ^[Yy]$ ]]; then
         echo
@@ -81,7 +103,7 @@ if [ "$MAJOR_VERSION" -lt "16" ]; then
     echo "⚠️  Node.js version $NODE_VERSION is too old"
     echo "MELQ requires Node.js 16 or newer"
     echo
-    read -p "Would you like to open the Node.js download page? (y/n): " update_node
+    update_node=$(interactive_prompt "Would you like to open the Node.js download page? (y/n): " "n")
     
     if [[ $update_node =~ ^[Yy]$ ]]; then
         if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -104,7 +126,7 @@ if ! command -v git &> /dev/null; then
     echo "⚠️  Git is not installed."
     echo "Git is needed to download MELQ."
     echo
-    read -p "Would you like installation instructions? (y/n): " install_git
+    install_git=$(interactive_prompt "Would you like installation instructions? (y/n): " "n")
     
     if [[ $install_git =~ ^[Yy]$ ]]; then
         echo
@@ -146,7 +168,7 @@ echo "📁 Installing to: $INSTALL_DIR"
 if [ -d "$INSTALL_DIR" ]; then
     echo
     echo "⚠️  MELQ directory already exists at $INSTALL_DIR"
-    read -p "Remove existing installation and reinstall? (y/n): " overwrite
+    overwrite=$(interactive_prompt "Remove existing installation and reinstall? (y/n): " "y")
     
     if [[ $overwrite =~ ^[Yy]$ ]]; then
         echo "Removing existing installation..."
@@ -238,7 +260,7 @@ echo "📁 Installed in: $INSTALL_DIR"
 echo "📖 For help visit: https://github.com/ecbaldwin4/melq"
 echo
 
-read -p "Would you like to start MELQ now? (y/n): " run_now
+run_now=$(interactive_prompt "Would you like to start MELQ now? (y/n): " "n")
 
 if [[ $run_now =~ ^[Yy]$ ]]; then
     echo
