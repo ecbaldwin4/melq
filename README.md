@@ -4,11 +4,14 @@ A secure peer-to-peer chat system with a directory-like CLI interface. Uses ngro
 
 ## Features
 
-- **Secure Communication**: MLKEM key exchange + AES-256 encryption
-- **P2P Architecture**: Direct encrypted messaging between nodes
-- **Directory-like Interface**: Navigate chats like a Linux filesystem
-- **Coordination Server**: Uses ngrok for node discovery
-- **Real-time Messaging**: WebSocket-based communication
+- **🔐 Quantum-Secure**: MLKEM-768 key exchange + AES-256 encryption
+- **🌐 P2P Architecture**: Direct encrypted messaging between nodes
+- **🗂️ Beautiful TUI**: Filesystem-like interface with emojis and colors
+- **🚀 Multiple Connection Methods**: ngrok, localtunnel, serveo, or manual setup
+- **💬 Real-time Chat**: WebSocket-based with typing indicators
+- **📱 Responsive Design**: Adapts to different terminal sizes
+- **⚡ Smart Discovery**: Automatic peer discovery and connection
+- **🎨 Rich Interface**: Loading animations, status indicators, and intuitive commands
 
 ## Setup
 
@@ -74,30 +77,83 @@ The interface works like a Linux CLI:
 - `help` - Show available commands
 - `Ctrl+C` - Exit
 
+## Beautiful TUI Interface
+
+MELQ features a modern, emoji-rich terminal interface that makes secure chatting delightful:
+
+### Main Menu
+```
+🔐 MELQ - Quantum-Secure P2P Chat
+══════════════════════════════════════════════════
+
+What would you like to do?
+1. 🏠 Host a new network (others can join you)
+2. 🔗 Join an existing network
+3. 🔍 Discover local networks
+4. ❓ Help
+```
+
+### Directory Navigation
+```
+╔══════════════════════════════════════════════════════════════╗
+║          🔐 MELQ - Quantum-Secure P2P Chat                  ║
+║                                                              ║
+║              Connected as: abc12345                          ║
+║              Status: 🟢 Connected                            ║
+╚══════════════════════════════════════════════════════════════╝
+
+📁 Available Chats:
+──────────────────────────────────────────────────────────────
+  💬 general [2] 5m ago
+  📁 random (empty)
+
+[abc12345](2) /$ 
+```
+
+### Chat Interface
+```
+╭──────────────────────────────────────────────────────────────╮
+│              🟢 GENERAL (2 peers)                           │
+╰──────────────────────────────────────────────────────────────╯
+
+  [15:30] You: Hello everyone! 👋
+  
+  [15:31] Alice: Hey there! How's everyone doing?
+  
+  [15:32] Bob: Great to see you all here!
+
+╭──────────────────────────────────────────────────────────────╮
+│            Commands: /exit /help /clear /discover           │
+╰──────────────────────────────────────────────────────────────╯
+🟢 > 
+```
+
 ## Example Session
 
 ```bash
-[node_abc12345] /$ ls
-Available chats:
-  (no chats available)
-  Use "mkdir <chat_name>" to create a new chat
+# Start MELQ
+npm start
 
-[node_abc12345] /$ discover
-Discovering nodes...
+# Navigate and create chats
+[abc12345] /$ ls
+📁 Available chats:
+  📭 No chats available
+  💡 Use "mkdir <chat_name>" to create a new chat
 
-[node_abc12345] /$ mkdir general
-Creating chat: general
+[abc12345] /$ mkdir general
+🔨 Creating chat: "general"...
+✅ Successfully created chat "general"
 
-[node_abc12345] /$ cd general
-Entered chat: general
+[abc12345] /$ cd general
+# Beautiful chat interface opens with real-time messaging
 
-[node_abc12345] /general$ say Hello everyone!
-[10:30:25] You: Hello everyone!
+🟢 > Hello everyone!
+  [15:30] You: Hello everyone!
 
-[node_abc12345] /general$ ls
---- Chat History for general ---
-[10:30:25] You: Hello everyone!
---- End of History ---
+# Exit back to directory
+/exit
+✅ Left chat "general"
+💡 You're back in the main directory. Use "ls" to see all chats.
 ```
 
 ## Security Features
