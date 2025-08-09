@@ -121,11 +121,15 @@ if errorlevel 1 (
 )
 
 REM Get Node.js version and check if it's new enough
-for /f "tokens=1 delims=v" %%i in ('node --version') do set NODE_VERSION=%%i
-for /f "tokens=1 delims=." %%i in ("%NODE_VERSION:v=%") do set MAJOR_VERSION=%%i
+for /f "tokens=*" %%i in ('node --version') do set NODE_VERSION_FULL=%%i
+REM Extract major version number (skip 'v' prefix)
+for /f "tokens=1 delims=." %%a in ('node --version ^| findstr /r "^v[0-9]"') do (
+    set MAJOR_VERSION_WITH_V=%%a
+    set MAJOR_VERSION=!MAJOR_VERSION_WITH_V:~1!
+)
 
 if %MAJOR_VERSION% LSS 16 (
-    echo [!] Node.js version %NODE_VERSION% is too old
+    echo [!] Node.js version %NODE_VERSION_FULL% is too old
     echo MELQ requires Node.js 16 or newer
     echo.
     if "%~1"=="" (
@@ -192,7 +196,7 @@ if %MAJOR_VERSION% LSS 16 (
     )
 )
 
-echo [OK] Node.js %NODE_VERSION% found
+echo [OK] Node.js %NODE_VERSION_FULL% found
 
 REM Check for git
 git --version >nul 2>&1
