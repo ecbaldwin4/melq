@@ -27,6 +27,29 @@ if ! command -v npm &> /dev/null; then
         # Check if npm is now available
         if command -v npm &> /dev/null; then
             echo "✅ npm loaded successfully!"
+            
+            # Check if nvm is already in shell profile
+            SHELL_PROFILE=""
+            if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
+                SHELL_PROFILE="$HOME/.bashrc"
+            elif [ -f "$HOME/.zshrc" ]; then
+                SHELL_PROFILE="$HOME/.zshrc"
+            elif [ -f "$HOME/.profile" ]; then
+                SHELL_PROFILE="$HOME/.profile"
+            fi
+            
+            if [ -n "$SHELL_PROFILE" ]; then
+                if ! grep -q "NVM_DIR.*nvm" "$SHELL_PROFILE" 2>/dev/null; then
+                    echo "🔄 Adding nvm to $SHELL_PROFILE for future sessions..."
+                    echo "" >> "$SHELL_PROFILE"
+                    echo "# Added by MELQ fix-path script" >> "$SHELL_PROFILE"
+                    echo 'export NVM_DIR="$HOME/.nvm"' >> "$SHELL_PROFILE"
+                    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> "$SHELL_PROFILE"
+                    echo "✅ nvm will be available in new terminal sessions"
+                else
+                    echo "✅ nvm already configured in $SHELL_PROFILE"
+                fi
+            fi
         else
             echo "❌ npm still not found after loading nvm."
             echo "💡 Please run: source ~/.bashrc"
@@ -122,6 +145,18 @@ if command -v melq &> /dev/null; then
     echo
     echo "🧪 Testing melq..."
     melq --help
+    
+    echo
+    echo "🎉 SUCCESS! melq is working in the fix-path script environment."
+    echo
+    echo "⚠️  IMPORTANT: To use 'melq' command in your main shell:"
+    echo "   1. Restart your terminal: exit and reconnect"
+    echo "   2. Or reload shell: exec bash"
+    echo "   3. Or source profile: source ~/.bashrc"
+    echo
+    echo "💡 Alternative: Always run from this directory:"
+    echo "   cd ~/MELQ && node src/index.js"
+    
 else
     echo "❌ melq command still not working"
     echo "💡 Manual workaround:"
