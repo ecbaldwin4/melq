@@ -50,74 +50,21 @@ if errorlevel 1 (
     echo [X] Node.js is not installed!
     echo.
     echo Node.js is required to run MELQ.
-    if "%~1"=="" (
-        set /p install_node="Would you like to install Node.js using Chocolatey? (y/n): "
-    ) else (
-        echo Running in automated mode - installing Node.js with Chocolatey...
-        set install_node=y
-    )
+    set /p install_node="Would you like to download and install Node.js? (y/n): "
     
     if /i "%install_node%"=="y" (
         echo.
-        echo Installing Node.js using Chocolatey...
+        echo Opening Node.js download page...
+        echo Please download the LTS version and run the installer.
+        echo After installation, restart this installer.
+        start https://nodejs.org/
         echo.
-        
-        REM Check if Chocolatey is already installed
-        choco --version >nul 2>&1
-        if errorlevel 1 (
-            echo 1. Installing Chocolatey...
-            powershell -c "irm https://community.chocolatey.org/install.ps1|iex"
-            
-            if errorlevel 1 (
-                echo [X] Failed to install Chocolatey
-                echo.
-                echo Please run this installer as Administrator or install manually:
-                echo https://chocolatey.org/install
-                echo.
-                pause
-                exit /b 1
-            )
-            
-            echo [OK] Chocolatey installed successfully
-        ) else (
-            echo [OK] Chocolatey already installed
-        )
-        
-        echo.
-        echo 2. Installing Node.js 22.18.0...
-        choco install nodejs --version="22.18.0" -y
-        
-        if errorlevel 1 (
-            echo [X] Failed to install Node.js
-            echo Please try running as Administrator
-            echo.
-            pause
-            exit /b 1
-        )
-        
-        echo.
-        echo [OK] Node.js installation complete!
-        echo Verifying installation...
-        node -v
-        npm -v
-        echo.
-        echo Continuing with MELQ installation...
-        
-        REM Refresh environment variables
-        refreshenv >nul 2>&1 || echo Environment refreshed
-        
+        pause
+        exit /b 1
     ) else (
         echo.
-        echo Please install Node.js manually:
-        echo.
-        echo # Recommended method (using Chocolatey):
-        echo powershell -c "irm https://community.chocolatey.org/install.ps1|iex"
-        echo choco install nodejs --version="22.18.0"
-        echo.
-        echo # Alternative - Direct download:
-        echo https://nodejs.org/ ^(LTS version^)
-        echo.
-        echo After installation, restart this installer.
+        echo Please install Node.js first: https://nodejs.org/
+        echo Choose the LTS version and restart this installer after.
         echo.
         pause
         exit /b 1
@@ -139,65 +86,17 @@ if %MAJOR_VERSION% LSS 16 (
     echo [!] Node.js version %NODE_VERSION_FULL% is too old
     echo MELQ requires Node.js 16 or newer
     echo.
-    if "%~1"=="" (
-        set /p update_node="Would you like to upgrade Node.js using Chocolatey? (y/n): "
-    ) else (
-        echo Running in automated mode - upgrading Node.js with Chocolatey...
-        set update_node=y
-    )
+    set /p update_node="Would you like to download the latest Node.js? (y/n): "
     
     if /i "%update_node%"=="y" (
+        echo Opening Node.js download page...
+        start https://nodejs.org/
+        echo Please download and install the LTS version, then restart this installer.
         echo.
-        echo Upgrading Node.js using Chocolatey...
-        echo.
-        
-        REM Check if Chocolatey is available
-        choco --version >nul 2>&1
-        if errorlevel 1 (
-            echo 1. Installing Chocolatey...
-            powershell -c "irm https://community.chocolatey.org/install.ps1|iex"
-            
-            if errorlevel 1 (
-                echo [X] Failed to install Chocolatey
-                echo Please run as Administrator or install manually
-                pause
-                exit /b 1
-            )
-        )
-        
-        echo 2. Upgrading to Node.js 22.18.0...
-        choco upgrade nodejs --version="22.18.0" -y
-        
-        if errorlevel 1 (
-            echo [!] Upgrade failed, trying fresh install...
-            choco uninstall nodejs -y
-            choco install nodejs --version="22.18.0" -y
-        )
-        
-        echo.
-        echo [OK] Node.js upgrade complete!
-        echo Verifying installation...
-        
-        REM Refresh environment variables
-        refreshenv >nul 2>&1
-        
-        node -v
-        npm -v
-        echo.
-        echo Continuing with MELQ installation...
-        
+        pause
+        exit /b 1
     ) else (
-        echo.
-        echo Please upgrade Node.js:
-        echo.
-        echo # Recommended method (using Chocolatey):
-        echo powershell -c "irm https://community.chocolatey.org/install.ps1|iex"
-        echo choco install nodejs --version="22.18.0"
-        echo.
-        echo # Alternative - Direct download:
-        echo https://nodejs.org/ ^(LTS version^)
-        echo.
-        echo After upgrading, restart this installer.
+        echo Please update Node.js: https://nodejs.org/
         pause
         exit /b 1
     )
@@ -241,7 +140,7 @@ echo 📁 Installing to: %INSTALL_DIR%
 
 if exist "%INSTALL_DIR%" (
     echo.
-    echo ⚠️  MELQ directory already exists at %INSTALL_DIR%
+    echo [!] MELQ directory already exists at %INSTALL_DIR%
     set /p overwrite="Remove existing installation and reinstall? (y/n): "
     
     if /i "%overwrite%"=="y" (
@@ -291,7 +190,7 @@ echo 🔗 Setting up global 'melq' command...
 call npm link
 
 if errorlevel 1 (
-    echo ⚠️  Global installation had issues, but MELQ is installed locally
+    echo [!] Global installation had issues, but MELQ is installed locally
     echo.
     echo You can run MELQ by opening a command prompt in:
     echo %INSTALL_DIR%
@@ -304,7 +203,7 @@ echo [OK] MELQ installed globally
 echo.
 
 REM Test installation
-echo 🧪 Testing installation...
+echo Testing installation...
 melq --version >nul 2>&1
 if not errorlevel 1 (
     echo [OK] Installation successful!
@@ -387,7 +286,7 @@ if /i "%fix_path%"=="y" (
 echo.
 
 :success
-echo 🚀 MELQ is ready!
+echo MELQ is ready!
 echo.
 echo 📁 Installed in: %INSTALL_DIR%
 echo 📖 For help visit: https://github.com/ecbaldwin4/melq
