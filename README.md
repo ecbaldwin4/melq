@@ -15,15 +15,26 @@ A secure peer-to-peer chat system with a directory-like CLI interface. Uses ngro
 
 ## Quick Start
 
-### 🚀 Easy Installation (Recommended)
+### 🚀 Zero-Touch Installation (Recommended)
 
 **Windows Users:**
-1. Download and run `install-windows.bat`
-2. Type `melq` anywhere to start!
+```cmd
+curl -o install.bat https://raw.githubusercontent.com/ecbaldwin4/melq/master/install.bat && install.bat
+```
+Or download and run: https://raw.githubusercontent.com/ecbaldwin4/melq/master/install.bat
 
 **Linux/macOS Users:**
-1. Run: `./install-linux.sh`
-2. Type `melq` anywhere to start!
+```bash
+curl -fsSL https://raw.githubusercontent.com/ecbaldwin4/melq/master/install.sh | bash
+```
+Or download and run: https://raw.githubusercontent.com/ecbaldwin4/melq/master/install.sh
+
+This single command will:
+- ✅ Check if you have Node.js (helps you install if needed)
+- ⬇️ Download MELQ automatically
+- 📦 Install all dependencies
+- 🔗 Set up the global `melq` command
+- 🧪 Test everything works
 
 ### 📦 Manual Installation
 
@@ -138,21 +149,30 @@ What would you like to do?
 
 ### For Non-Technical Users
 
-1. **Download**: Get the install script for your system
-   - Windows: Download `install-windows.bat` and double-click it
-   - Linux/macOS: Download `install-linux.sh` and run it in terminal
+**The Really Easy Way:**
 
-2. **Install**: The script will:
-   - Check if you have Node.js (installs if needed)
-   - Set up MELQ globally
-   - Test the installation
-
-3. **Run**: Open any terminal/command prompt and type:
+1. **Copy and paste one command** (choose your system):
+   
+   **Windows:** Open Command Prompt and paste:
+   ```cmd
+   curl -o install.bat https://raw.githubusercontent.com/ecbaldwin4/melq/master/install.bat && install.bat
    ```
-   melq
+   
+   **Mac/Linux:** Open Terminal and paste:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/ecbaldwin4/melq/master/install.sh | bash
    ```
 
-4. **Start Chatting**: Choose option 1 to host, or option 2 to join someone else
+2. **Follow the prompts**: The installer will ask before doing anything and guide you through any needed steps
+
+3. **Start chatting**: Once installed, just type `melq` anywhere to start!
+
+**What the installer does for you:**
+- Checks if you have everything needed (Node.js, Git)
+- Offers to help you install missing requirements  
+- Downloads MELQ automatically
+- Sets up the `melq` command globally
+- Tests that everything works
 
 ### Example Session
 
