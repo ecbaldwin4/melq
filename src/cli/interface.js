@@ -164,6 +164,8 @@ export class CLIInterface {
 
     switch (command) {
       case 'ls':
+        // Show connection info first, then chat list
+        this.showConnectionInfo();
         this.listContents();
         break;
       
@@ -198,6 +200,8 @@ export class CLIInterface {
       
       case 'clear':
         console.clear();
+        // Show connection info after clearing screen in directory mode
+        this.showConnectionInfo();
         break;
       
       case '':
@@ -585,6 +589,9 @@ export class CLIInterface {
     console.clear();
     console.log(chalk.green(`✅ Left chat "${chatName}"`));
     console.log(chalk.dim.gray('💡 You\'re back in the main directory. Use "ls" to see all chats.\n'));
+    
+    // Show connection info when returning to main directory
+    this.showConnectionInfo();
     
     this.updatePrompt();
     this.rl.prompt();
