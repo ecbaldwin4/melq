@@ -43,16 +43,17 @@ echo "• Set up global 'melq' command"
 echo
 
 # Check if running in non-interactive mode (piped)
-if [ -t 0 ]; then
+# When piped via curl | bash, stdin is not available for input
+if ! [ -t 0 ]; then
+    echo "🤖 Running in non-interactive mode - proceeding with installation..."
+    confirm="y"
+else
     # Interactive mode - ask for confirmation
     read -p "Continue with installation? (y/n): " confirm
     if [[ ! $confirm =~ ^[Yy]$ ]]; then
         echo "Installation cancelled."
         exit 0
     fi
-else
-    # Non-interactive mode (piped) - auto-continue
-    echo "Running in non-interactive mode - proceeding with installation..."
 fi
 
 echo
