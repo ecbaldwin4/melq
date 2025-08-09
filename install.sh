@@ -63,37 +63,70 @@ if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed!"
     echo
     echo "Node.js is required to run MELQ."
-    install_node=$(interactive_prompt "Would you like installation instructions? (y/n): " "n")
+    install_node=$(interactive_prompt "Would you like to install Node.js using nvm? (y/n): " "n")
     
     if [[ $install_node =~ ^[Yy]$ ]]; then
         echo
-        echo "Please install Node.js using one of these methods:"
+        echo "🔄 Installing Node.js using nvm (Node Version Manager)..."
         echo
         
-        # Detect OS and show appropriate instructions
+        # Download and install nvm
+        echo "1. Installing nvm..."
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+        
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install nvm"
+            echo
+            echo "Manual installation:"
+            echo "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash"
+            echo "Then restart this installer"
+            exit 1
+        fi
+        
+        # Source nvm in current shell
+        echo "2. Loading nvm..."
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        
+        # Install Node.js 22
+        echo "3. Installing Node.js 22..."
+        nvm install 22
+        nvm use 22
+        
+        echo
+        echo "✅ Node.js installation complete!"
+        node -v
+        npm -v
+        echo
+        echo "🔄 Continuing with MELQ installation..."
+        
+        # Continue with the rest of the installer
+    else
+        echo
+        echo "Please install Node.js manually:"
+        echo
+        echo "# Recommended method (using nvm):"
+        echo "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash"
+        echo "source ~/.bashrc"
+        echo "nvm install 22"
+        echo
+        echo "# Alternative methods:"
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            echo "macOS:"
-            echo "• Using Homebrew: brew install node"
-            echo "• Or download from: https://nodejs.org/"
+            echo "• macOS: brew install node"
         elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            echo "Linux:"
             if command -v apt &> /dev/null; then
                 echo "• Ubuntu/Debian: sudo apt update && sudo apt install nodejs npm"
             elif command -v yum &> /dev/null; then
                 echo "• CentOS/RHEL: sudo yum install nodejs npm"
             elif command -v pacman &> /dev/null; then
                 echo "• Arch: sudo pacman -S nodejs npm"
-            else
-                echo "• Or download from: https://nodejs.org/"
             fi
-            echo "• Or download from: https://nodejs.org/"
         fi
+        echo "• Or download from: https://nodejs.org/"
         echo
         echo "After installing Node.js, run this installer again."
-    else
-        echo "Please install Node.js first: https://nodejs.org/"
+        exit 1
     fi
-    exit 1
 fi
 
 # Check Node.js version
@@ -104,19 +137,48 @@ if [ "$MAJOR_VERSION" -lt "16" ]; then
     echo "⚠️  Node.js version $NODE_VERSION is too old"
     echo "MELQ requires Node.js 16 or newer"
     echo
-    update_node=$(interactive_prompt "Would you like to open the Node.js download page? (y/n): " "n")
+    update_node=$(interactive_prompt "Would you like to upgrade Node.js using nvm? (y/n): " "n")
     
     if [[ $update_node =~ ^[Yy]$ ]]; then
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            open https://nodejs.org/
+        echo
+        echo "🔄 Upgrading Node.js using nvm..."
+        
+        # Check if nvm is already installed
+        if command -v nvm &> /dev/null; then
+            echo "✅ nvm found, installing Node.js 22..."
+            nvm install 22
+            nvm use 22
         else
-            xdg-open https://nodejs.org/ 2>/dev/null || echo "Please visit: https://nodejs.org/"
+            echo "1. Installing nvm..."
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+            
+            echo "2. Loading nvm..."
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            echo "3. Installing Node.js 22..."
+            nvm install 22
+            nvm use 22
         fi
-        echo "Please update Node.js and run this installer again."
+        
+        echo
+        echo "✅ Node.js upgrade complete!"
+        node -v
+        npm -v
+        echo
+        echo "🔄 Continuing with MELQ installation..."
     else
-        echo "Please update Node.js: https://nodejs.org/"
+        echo
+        echo "Please upgrade Node.js:"
+        echo
+        echo "# Recommended method (using nvm):"
+        echo "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash"
+        echo "source ~/.bashrc"
+        echo "nvm install 22"
+        echo
+        echo "# Or visit: https://nodejs.org/"
+        exit 1
     fi
-    exit 1
 fi
 
 echo "✅ Node.js $(node --version) found"

@@ -46,21 +46,42 @@ if errorlevel 1 (
     echo [X] Node.js is not installed!
     echo.
     echo Node.js is required to run MELQ.
-    set /p install_node="Would you like to download and install Node.js? (y/n): "
+    echo.
+    echo Recommended installation method:
+    echo.
+    echo 1. Install nvm-windows from: https://github.com/coreybutler/nvm-windows/releases
+    echo 2. Open a new Command Prompt as Administrator
+    echo 3. Run: nvm install 22
+    echo 4. Run: nvm use 22
+    echo 5. Verify: node -v
+    echo.
+    set /p install_node="Would you like to open the nvm-windows download page? (y/n): "
     
     if /i "!install_node!"=="y" (
         echo.
-        echo 🌐 Opening Node.js download page...
-        echo Please download the LTS version and run the installer.
-        echo After installation, restart this installer.
-        start https://nodejs.org/
+        echo Opening nvm-windows download page...
+        start https://github.com/coreybutler/nvm-windows/releases
+        echo.
+        echo After installing nvm-windows:
+        echo 1. Open Command Prompt as Administrator
+        echo 2. Run: nvm install 22
+        echo 3. Run: nvm use 22
+        echo 4. Restart this installer
         echo.
         pause
         exit /b 1
     ) else (
         echo.
-        echo Please install Node.js first: https://nodejs.org/
-        echo Choose the LTS version and restart this installer after.
+        echo Please install Node.js using one of these methods:
+        echo.
+        echo # Recommended - nvm-windows:
+        echo https://github.com/coreybutler/nvm-windows/releases
+        echo Then: nvm install 22 ^&^& nvm use 22
+        echo.
+        echo # Alternative - Direct download:
+        echo https://nodejs.org/ ^(LTS version^)
+        echo.
+        echo After installation, restart this installer.
         echo.
         pause
         exit /b 1
@@ -72,20 +93,33 @@ for /f "tokens=1 delims=v" %%i in ('node --version') do set NODE_VERSION=%%i
 for /f "tokens=1 delims=." %%i in ("%NODE_VERSION:v=%") do set MAJOR_VERSION=%%i
 
 if %MAJOR_VERSION% LSS 16 (
-    echo ⚠️  Node.js version %NODE_VERSION% is too old
+    echo [!] Node.js version %NODE_VERSION% is too old
     echo MELQ requires Node.js 16 or newer
     echo.
-    set /p update_node="Would you like to download the latest Node.js? (y/n): "
+    echo Recommended upgrade method using nvm-windows:
+    echo.
+    echo If you have nvm-windows installed:
+    echo   nvm install 22
+    echo   nvm use 22
+    echo.
+    echo If you don't have nvm-windows:
+    echo   1. Download from: https://github.com/coreybutler/nvm-windows/releases
+    echo   2. Install nvm-windows
+    echo   3. Run: nvm install 22 ^&^& nvm use 22
+    echo.
+    set /p update_node="Would you like to open the nvm-windows download page? (y/n): "
     
     if /i "!update_node!"=="y" (
-        echo 🌐 Opening Node.js download page...
+        echo Opening nvm-windows download page...
+        start https://github.com/coreybutler/nvm-windows/releases
+        echo.
+        echo Alternative: Direct Node.js download
         start https://nodejs.org/
-        echo Please download and install the LTS version, then restart this installer.
         echo.
         pause
         exit /b 1
     ) else (
-        echo Please update Node.js: https://nodejs.org/
+        echo Please update Node.js and restart this installer.
         pause
         exit /b 1
     )
