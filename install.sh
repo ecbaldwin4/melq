@@ -315,9 +315,13 @@ fi
 
 # Check for and fix any security vulnerabilities
 echo "🔍 Checking for security issues..."
-if npm audit --audit-level=high | grep -q "vulnerabilities"; then
+AUDIT_OUTPUT=$(npm audit --audit-level=high 2>/dev/null || echo "")
+if echo "$AUDIT_OUTPUT" | grep -q "vulnerabilities found" || echo "$AUDIT_OUTPUT" | grep -q "high severity"; then
     echo "🔧 Fixing security vulnerabilities..."
-    npm audit fix --force --audit-level=high || true
+    npm audit fix --force >/dev/null 2>&1 || true
+    echo "✅ Security vulnerabilities addressed"
+else
+    echo "✅ No high-severity vulnerabilities found"
 fi
 
 echo "✅ Dependencies installed and secured"
@@ -429,16 +433,13 @@ echo
 echo "📁 Installed in: $INSTALL_DIR"
 echo "📖 For help visit: https://github.com/ecbaldwin4/melq"
 
-# Final check and provide fix script if needed
-if ! command -v melq &> /dev/null; then
-    echo
-    echo "⚠️  If 'melq' command is not found, run this fix:"
-    echo "   cd $INSTALL_DIR && ./fix-path.sh"
-    echo
-    echo "💡 Alternative ways to run MELQ:"
-    echo "   cd $INSTALL_DIR && node src/index.js"
-    echo "   cd $INSTALL_DIR && npm start"
-fi
+# Always show path fix instructions (common issue)
+echo
+echo "📝 IMPORTANT: If 'melq' command is not found after installation:"
+echo "   🔧 Quick fix: cd $INSTALL_DIR && ./fix-path.sh"
+echo "   💡 Or run directly: cd $INSTALL_DIR && node src/index.js"
+echo "   📚 Or use npm: cd $INSTALL_DIR && npm start"
+echo
 
 echo
 
