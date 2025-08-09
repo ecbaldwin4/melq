@@ -63,7 +63,7 @@ if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed!"
     echo
     echo "Node.js is required to run MELQ."
-    install_node=$(interactive_prompt "Would you like to install Node.js using nvm? (y/n): " "y")
+    install_node=$(interactive_prompt "Would you like to install Node.js using nvm? (Y/n): " "y")
     
     if [[ $install_node =~ ^[Yy]$ ]]; then
         echo
