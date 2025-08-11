@@ -402,7 +402,7 @@ export class CLIInterface {
     const fromNode = messageData.fromNodeId.slice(-8);
 
     // Check if this is a name change notification
-    if (messageData.text.startsWith('__NAME_CHANGE__:')) {
+    if (messageData.text && messageData.text.startsWith('__NAME_CHANGE__:')) {
       const customName = messageData.text.substring('__NAME_CHANGE__:'.length);
       this.handleNameChange(messageData.chatId, fromNode, customName);
       return; // Don't add name change messages to chat history
@@ -556,7 +556,8 @@ export class CLIInterface {
         } else {
           const msgText = this.wrapText(msg.text, maxTextWidth);
           const displayName = this.getDisplayName(this.currentChat.id, msg.from);
-          const userColor = this.getColorForUser(this.currentChat.id, msg.from);
+          // Use display name for color assignment to ensure custom names get colors
+          const userColor = this.getColorForUser(this.currentChat.id, displayName);
           console.log(`  ${timeColor(`[${timestamp}]`)} ${userColor(chalk.bold(displayName))}: ${msgText}`);
         }
         
@@ -759,9 +760,9 @@ export class CLIInterface {
     // Show notification if we're currently in this chat
     if (this.currentChat && this.currentChat.id === chatId) {
       if (previousName) {
-        this.displaySystemMessage(`${previousName} is now known as ${customName}`);
+        this.displaySystemMessage(`✨ ${previousName} is now known as ${customName}`);
       } else {
-        this.displaySystemMessage(`${fromNode} is now known as ${customName}`);
+        this.displaySystemMessage(`✨ ${fromNode} is now known as ${customName}`);
       }
     }
   }
@@ -807,7 +808,9 @@ export class CLIInterface {
     this.displaySystemMessage('Current participants with their assigned colors:');
     for (const [username, colorFunc] of assignments.entries()) {
       const displayName = this.getDisplayName(this.currentChat.id, username);
-      const coloredName = colorFunc(displayName);
+      // Get color for display name to match message display
+      const displayColor = this.getColorForUser(this.currentChat.id, displayName);
+      const coloredName = displayColor(displayName);
       this.displaySystemMessage(`  ${coloredName}`);
     }
   }
