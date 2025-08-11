@@ -24,6 +24,7 @@ export class CLIInterface {
     this.spinnerFrame = 0;
     this.spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     this.connectionInfo = null; // Store connection details for display
+    this.refreshTimeout = null; // Debounce rapid refreshes
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -59,7 +60,7 @@ export class CLIInterface {
     process.stdout.on('resize', () => {
       this.chatHeight = Math.max(10, process.stdout.rows - 6);
       if (this.mode === CHAT_MODES.CHAT && this.currentChat) {
-        this.refreshChatDisplay();
+        this.debouncedRefresh();
       }
     });
   }
@@ -392,16 +393,21 @@ export class CLIInterface {
       const currentInput = this.rl.line;
       const currentCursor = this.rl.cursor;
       
-      this.refreshChatDisplay();
-      this.showInputArea();
+      // Use debounced refresh to prevent display corruption from rapid messages
+      this.debouncedRefresh();
       
-      // Restore the input line and cursor position properly
-      this.rl.line = currentInput;
-      this.rl.cursor = currentCursor;
-      
-      // Clear the current line and rewrite with proper cursor position
-      process.stdout.write('\r\x1b[K'); // Clear current line
-      this.rl._refreshLine(); // Use readline's internal refresh method
+      // Small delay to let display refresh complete before restoring input
+      setTimeout(() => {
+        this.showInputArea();
+        
+        // Restore the input line and cursor position properly
+        this.rl.line = currentInput;
+        this.rl.cursor = currentCursor;
+        
+        // Clear the current line and rewrite with proper cursor position
+        process.stdout.write('\r\x1b[K'); // Clear current line
+        this.rl._refreshLine(); // Use readline's internal refresh method
+      }, 60); // Slightly longer than debounce delay
     }
     // In directory mode, don't show any message notifications
   }
@@ -454,10 +460,21 @@ export class CLIInterface {
     this.updatePrompt();
   }
 
+  // Debounced refresh to prevent rapid updates
+  debouncedRefresh() {
+    if (this.refreshTimeout) {
+      clearTimeout(this.refreshTimeout);
+    }
+    this.refreshTimeout = setTimeout(() => {
+      this.refreshChatDisplay();
+    }, 50); // 50ms debounce
+  }
+
   refreshChatDisplay() {
     if (!this.currentChat) return;
     
-    console.clear();
+    // More robust terminal clearing
+    process.stdout.write('\x1b[2J\x1b[H'); // Clear entire screen and move cursor to top-left
     
     // Responsive header
     const terminalWidth = Math.min(process.stdout.columns || 80, 80);
@@ -477,9 +494,10 @@ export class CLIInterface {
     console.log(chalk.cyan('│') + leftPadding + chalk.bold.white(headerTitle) + rightPadding + chalk.cyan('│'));
     console.log(chalk.cyan('╰' + '─'.repeat(terminalWidth - 2) + '╯'));
     
-    // Chat messages area
+    // Chat messages area - ensure we have proper height calculation
+    const availableHeight = Math.max(10, (process.stdout.rows || 25) - 8); // Header + input area
     const chatMessages = this.messages.get(this.currentChat.id) || [];
-    const displayMessages = chatMessages.slice(-this.chatHeight);
+    const displayMessages = chatMessages.slice(-availableHeight);
     
     if (displayMessages.length === 0) {
       const emptyMsg = 'No messages yet. Start the conversation! 💬';
