@@ -15,6 +15,7 @@ export class CLIInterface {
     this.currentChat = null;
     this.mode = CHAT_MODES.DIRECTORY;
     this.messages = new Map(); // chatId -> messages[]
+    this.chatColorAssignments = new Map(); // chatId -> { username -> colorName }
     this.chatHeight = Math.max(10, process.stdout.rows - 6); // Reserve space for input area
     this.isConnecting = false;
     this.connectionStatus = 'disconnected';
@@ -146,6 +147,12 @@ export class CLIInterface {
     
     if (trimmedInput === '/clear') {
       this.clearChatScreen();
+      this.rl.prompt();
+      return;
+    }
+    
+    if (trimmedInput === '/colors') {
+      this.showColorAssignments();
       this.rl.prompt();
       return;
     }
@@ -365,6 +372,9 @@ export class CLIInterface {
         timestamp: Date.now()
       });
 
+      // Ensure "You" gets a color assignment in this chat
+      this.getColorForUser(this.currentChat.id, 'You');
+
       // Refresh the chat display to show the new message
       this.refreshChatDisplay();
       this.showInputArea();
@@ -386,6 +396,9 @@ export class CLIInterface {
       text: messageData.text,
       timestamp: messageData.timestamp
     });
+
+    // Ensure sender gets a color assignment in this chat
+    this.getColorForUser(messageData.chatId, fromNode);
 
     // Only refresh display if we're in the same chat in chat mode
     if (this.mode === CHAT_MODES.CHAT && this.currentChat && this.currentChat.id === messageData.chatId) {
@@ -520,7 +533,7 @@ export class CLIInterface {
           console.log(chalk.green(`  ${timeColor(`[${timestamp}]`)} ${chalk.bold('You')}: ${msgText}`));
         } else {
           const msgText = this.wrapText(msg.text, maxTextWidth);
-          const userColor = this.getUserColor(msg.from);
+          const userColor = this.getColorForUser(this.currentChat.id, msg.from);
           console.log(`  ${timeColor(`[${timestamp}]`)} ${userColor(chalk.bold(msg.from))}: ${msgText}`);
         }
         
@@ -564,8 +577,51 @@ export class CLIInterface {
     return lines.join('\n    '); // Add indent for wrapped lines
   }
   
+  getColorForUser(chatId, username) {
+    // Get or assign a unique color for this user in this specific chat
+    if (!this.chatColorAssignments.has(chatId)) {
+      this.chatColorAssignments.set(chatId, new Map());
+    }
+    
+    const chatAssignments = this.chatColorAssignments.get(chatId);
+    
+    if (chatAssignments.has(username)) {
+      return chatAssignments.get(username);
+    }
+    
+    // Available colors
+    const availableColors = [
+      chalk.blue,
+      chalk.red, 
+      chalk.green,
+      chalk.yellow,
+      chalk.magenta,
+      chalk.cyan,
+      chalk.hex('#FFA500'), // Orange
+      chalk.hex('#9370DB'), // Purple
+      chalk.hex('#FF69B4'), // Pink
+      chalk.hex('#32CD32'), // Lime
+      chalk.hex('#008080'), // Teal
+      chalk.hex('#FFD700')  // Gold
+    ];
+    
+    // Assign colors in order to ensure each person gets a different color
+    const colorIndex = chatAssignments.size % availableColors.length;
+    const selectedColor = availableColors[colorIndex];
+    
+    // Assign this color to the user in this chat
+    chatAssignments.set(username, selectedColor);
+    
+    return selectedColor;
+  }
+
   getUserColor(username) {
-    // Generate consistent colors for users based on their name
+    // Use per-chat color assignment if we're in a chat
+    if (this.currentChat) {
+      return this.getColorForUser(this.currentChat.id, username);
+    }
+    
+    // Original color system as fallback
     const colors = [
       chalk.blue, chalk.magenta, chalk.yellow, 
       chalk.cyan, chalk.red, chalk.green
@@ -587,7 +643,7 @@ export class CLIInterface {
     console.log(chalk.dim.cyan('╭' + inputLine + '╮'));
     
     // Show helpful commands
-    const commands = '/exit /help /clear /discover';
+    const commands = '/exit /help /clear /colors';
     const commandsText = `Commands: ${commands}`;
     const commandsPadding = Math.max(0, terminalWidth - commandsText.length - 4);
     const leftPad = Math.floor(commandsPadding / 2);
@@ -633,8 +689,27 @@ export class CLIInterface {
     }
   }
 
+  showColorAssignments() {
+    if (!this.currentChat || !this.chatColorAssignments.has(this.currentChat.id)) {
+      this.displaySystemMessage('No color assignments yet in this chat.');
+      return;
+    }
+    
+    const assignments = this.chatColorAssignments.get(this.currentChat.id);
+    if (assignments.size === 0) {
+      this.displaySystemMessage('No participants with assigned colors yet.');
+      return;
+    }
+    
+    this.displaySystemMessage('Current participants with their assigned colors:');
+    for (const [username, colorFunc] of assignments.entries()) {
+      const coloredName = colorFunc(username);
+      this.displaySystemMessage(`  ${coloredName}`);
+    }
+  }
+
   showChatHelp() {
-    this.displaySystemMessage('Chat commands: /exit (leave chat), /help (this help), /clear (refresh screen)');
+    this.displaySystemMessage('Chat commands: /exit (leave chat), /help (this help), /clear (refresh screen), /colors (show participants)');
     this.displaySystemMessage('Just type your message and press Enter to send it!');
     this.rl.prompt();
   }
