@@ -130,18 +130,26 @@ Command: melq --join <connection_code>
 
 The interface works like a Linux CLI:
 
-- `ls` - List available chats (or messages if in a chat)
-- `cd <chat_name>` - Enter a chat directory
+**Directory Navigation:**
+- `ls` - List available chats with activity indicators
+- `cd <chat_name>` - Enter a chat room
 - `cd ..` - Go back to main directory  
-- `mkdir <chat_name>` - Create a new chat
-- `say <message>` - Send a message in current chat
-- `discover` - Find other nodes
-- `nodes` - Show connected peers
-- `history` - Show chat message history
 - `pwd` - Show current path
-- `clear` - Clear screen
+
+**Chat Management:**
+- `mkdir <chat_name>` - Create a new chat room
+- `<message>` - In chat mode: just type your message and press Enter
+- `/exit` - Leave current chat (when in chat mode)
+- `/clear` - Refresh chat screen (when in chat mode)
+
+**Network:**
+- `discover` - Find other nodes on the network
+- `nodes` - Show connected peers and connection status
+
+**Utilities:**
+- `clear` - Clear terminal screen
 - `help` - Show available commands
-- `Ctrl+C` - Exit
+- `Ctrl+C` - Exit MELQ
 
 ## Beautiful TUI Interface
 
