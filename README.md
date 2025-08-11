@@ -18,7 +18,20 @@ A secure peer-to-peer chat system with a directory-like CLI interface. Uses ngro
 
 ## Quick Start
 
-### 🚀 Zero-Touch Installation (Recommended)
+### 🚀 NPM Installation (Recommended)
+
+**Once Published:**
+```bash
+# Global installation
+npm install -g melq
+
+# Start using MELQ
+melq
+```
+
+### 🔧 Development Installation (Current)
+
+Since MELQ isn't published to npm yet, use the development method:
 
 **Windows Users:**
 ```cmd
@@ -44,13 +57,16 @@ This single command will:
 If the quick install doesn't work:
 
 1. Install Node.js (version 16 or newer) from https://nodejs.org/
-2. Install dependencies:
+2. Clone and install:
    ```bash
+   git clone https://github.com/your-repo/melq.git
+   cd melq
    npm install
+   npm link  # Creates global 'melq' command
    ```
 3. Start MELQ:
    ```bash
-   npm start
+   melq
    ```
 
 ## Usage
@@ -80,9 +96,24 @@ melq --host --internet             # Host with internet access
 melq --host --password mypass      # Host password-protected session
 melq --host --internet --password secure123  # Internet + password
 melq --join <code>                 # Join with connection code
-melq --update                      # Update to latest version
+melq --update                      # Update to latest version (npm-based)
 melq --check-updates               # Check for available updates
 melq --help                        # Show all options
+```
+
+### 🔄 Updates
+
+MELQ now features a streamlined update system:
+
+```bash
+# Check for updates
+melq --check-updates
+
+# Update to latest version (once published to npm)
+melq --update
+
+# For development installations, the system will detect this automatically
+# and show appropriate messages about having the latest development version
 ```
 
 ## Internet Connectivity (No Account Required!)
@@ -280,7 +311,15 @@ What would you like to do?
 
 ### For Non-Technical Users
 
-**The Really Easy Way:**
+**The Really Easy Way (Future):**
+
+Once MELQ is published to npm:
+```bash
+npm install -g melq
+melq
+```
+
+**Current Development Installation:**
 
 1. **Copy and paste one command** (choose your system):
    
@@ -304,6 +343,7 @@ What would you like to do?
 - Downloads MELQ automatically
 - Sets up the `melq` command globally
 - Tests that everything works
+- Prepares npm-based update system for when package is published
 
 ### Example Sessions
 
@@ -416,13 +456,23 @@ Enter password: teammeeting2024
 - Restart your terminal/command prompt after installation
 
 **"melq command not found"**
-- Run the install script again
+- For npm installation: `npm install -g melq` (once published)
+- For development: Run the install script again
 - Try restarting your terminal
 - On Linux/macOS, you may need: `export PATH=$(npm bin -g):$PATH`
 
 **"Permission denied" (Linux/macOS)**
-- The install script will try `sudo npm link` automatically
+- For npm: `sudo npm install -g melq` (once published)
+- For development: The install script will try `sudo npm link` automatically
 - Or if already downloaded: `cd melq && npm start`
+
+### Update Issues
+
+**"Package not found" during update**
+- This means you have a development installation
+- MELQ will detect this and show: "📦 This appears to be a development installation"
+- Development installations are always up-to-date with the latest code
+- Once published to npm, updates will work seamlessly with `melq --update`
 
 ### Connection Issues
 
@@ -434,11 +484,11 @@ Enter password: teammeeting2024
 
 ## Development
 
-For developers who want to modify MELQ:
+### For Developers
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/ecbaldwin4/melq.git
 cd melq
 
 # Install dependencies
@@ -446,15 +496,36 @@ npm install
 
 # Run in development mode
 npm run dev
+
+# Create global command for testing
+npm link
+```
+
+### NPM Publication
+
+MELQ is ready for npm publication with:
+- ✅ Proper `package.json` configuration
+- ✅ Binary entry point at `bin/melq.js`
+- ✅ Streamlined update system ready for npm registry
+- ✅ Development vs production detection
+
+**To publish:**
+```bash
+# When ready to publish
+npm publish
+
+# Users can then install with:
+npm install -g melq
 ```
 
 The system consists of:
-- `src/coordinator.js` - Central coordination server
-- `src/network/node.js` - P2P node implementation  
-- `src/crypto/mlkem.js` - MLKEM key exchange
-- `src/crypto/aes.js` - AES encryption
-- `src/cli/interface.js` - CLI interface
-- `src/index.js` - Main application
+- `src/index.js` - Main application and CLI argument handling
+- `src/network/unified-node.js` - Unified P2P node implementation  
+- `src/crypto/mlkem.js` - ML-KEM-768 key exchange
+- `src/crypto/aes.js` - AES-256-GCM encryption
+- `src/cli/interface.js` - Terminal user interface
+- `src/network/discovery.js` - Local network discovery
+- `src/network/tunneling.js` - Internet tunneling services
 - `bin/melq.js` - Global CLI entry point
 
 ## Security Compliance & Standards
