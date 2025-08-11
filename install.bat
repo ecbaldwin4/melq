@@ -25,19 +25,18 @@ if exist "src\index.js" (
 )
 
 echo What this installer will do:
+echo.
 echo - Check if Node.js is installed (install if needed)
-echo - Download MELQ source code
+echo - Download MELQ source code  
 echo - Install dependencies
 echo - Set up global 'melq' command
 echo.
 
+echo.
 echo This installer will run automatically without prompts.
 echo Running zero-touch installation - proceeding automatically...
+echo.
 set "confirm=y"
-
-echo.
-
-echo.
 
 REM Check if Node.js is installed
 node --version >nul 2>&1
@@ -59,6 +58,7 @@ if errorlevel 1 (
     )
     
     echo Winget installation failed. Trying chocolatey...
+    echo.
     
     REM Check if chocolatey is installed
     choco --version >nul 2>&1
@@ -114,6 +114,7 @@ if %MAJOR_VERSION% LSS 16 (
 )
 
 echo [OK] Node.js %NODE_VERSION_FULL% found
+echo.
 
 REM Check for git
 git --version >nul 2>&1
@@ -170,6 +171,7 @@ if errorlevel 1 (
 echo [OK] Git found
 echo.
 
+echo.
 REM Create installation directory
 set "INSTALL_DIR=%USERPROFILE%\MELQ"
 echo 📁 Installing to: %INSTALL_DIR%
