@@ -32,12 +32,12 @@ echo - Set up global 'melq' command
 echo.
 
 echo Note: For automated installation, you can pass any argument to skip prompts
-set confirm=n
+set "confirm=n"
 if "%~1"=="" (
-    set /p confirm="Continue with installation? (y/n): "
+    set /p "confirm=Continue with installation? (y/n): "
 ) else (
     echo Running in automated mode - proceeding with installation...
-    set confirm=y
+    set "confirm=y"
 )
 
 if /i not "%confirm%"=="y" (
@@ -87,7 +87,7 @@ if errorlevel 1 (
     echo.
     echo MANUAL INSTALLATION REQUIRED:
     echo Automated installation methods failed.
-    set /p install_node="Would you like to download and install Node.js manually? (y/n): "
+    set /p "install_node=Would you like to download and install Node.js manually? (y/n): "
     
     if /i "%install_node%"=="y" (
         echo.
@@ -109,21 +109,21 @@ if errorlevel 1 (
 )
 
 REM Get Node.js version and check if it's new enough
-for /f "tokens=*" %%i in ('node --version') do set NODE_VERSION_FULL=%%i
+for /f "tokens=*" %%i in ('node --version') do set "NODE_VERSION_FULL=%%i"
 REM Extract major version number (skip 'v' prefix) - use findstr to remove 'v'
 for /f "tokens=1 delims=." %%a in ('node --version ^| findstr /r "^v[0-9]" ^| findstr /r "[0-9]"') do (
-    set MAJOR_VERSION=%%a
+    set "MAJOR_VERSION=%%a"
 )
 REM If that didn't work, try a different approach
 if not defined MAJOR_VERSION (
-    for /f "tokens=2 delims=v." %%a in ('node --version') do set MAJOR_VERSION=%%a
+    for /f "tokens=2 delims=v." %%a in ('node --version') do set "MAJOR_VERSION=%%a"
 )
 
 if %MAJOR_VERSION% LSS 16 (
     echo [!] Node.js version %NODE_VERSION_FULL% is too old
     echo MELQ requires Node.js 16 or newer
     echo.
-    set /p update_node="Would you like to download the latest Node.js? (y/n): "
+    set /p "update_node=Would you like to download the latest Node.js? (y/n): "
     
     if /i "%update_node%"=="y" (
         echo Opening Node.js download page...
@@ -178,7 +178,7 @@ if errorlevel 1 (
     echo.
     echo MANUAL INSTALLATION REQUIRED:
     echo Automated installation methods failed.
-    set /p install_git="Would you like to download and install Git manually? (y/n): "
+    set /p "install_git=Would you like to download and install Git manually? (y/n): "
     
     if /i "%install_git%"=="y" (
         echo 🌐 Opening Git download page...
@@ -202,13 +202,13 @@ echo [OK] Git found
 echo.
 
 REM Create installation directory
-set INSTALL_DIR=%USERPROFILE%\MELQ
+set "INSTALL_DIR=%USERPROFILE%\MELQ"
 echo 📁 Installing to: %INSTALL_DIR%
 
 if exist "%INSTALL_DIR%" (
     echo.
     echo [!] MELQ directory already exists at %INSTALL_DIR%
-    set /p overwrite="Remove existing installation and reinstall? (y/n): "
+    set /p "overwrite=Remove existing installation and reinstall? (y/n): "
     
     if /i "%overwrite%"=="y" (
         echo Removing existing installation...
@@ -290,10 +290,10 @@ echo 🔧 Would you like me to try fixing the PATH automatically?
 echo This will add the npm global directory to your system PATH.
 echo.
 if "%~1"=="" (
-    set /p fix_path="Add npm global directory to PATH? (y/n): "
+    set /p "fix_path=Add npm global directory to PATH? (y/n): "
 ) else (
     echo Running in automated mode - will attempt PATH fix...
-    set fix_path=y
+    set "fix_path=y"
 )
 
 if /i "%fix_path%"=="y" (
@@ -301,12 +301,12 @@ if /i "%fix_path%"=="y" (
     echo 🔧 Trying to fix PATH automatically...
     
     REM Get npm global bin directory (works with both old and new npm versions)
-    for /f "tokens=*" %%i in ('npm bin -g 2^>nul') do set NPM_BIN=%%i
+    for /f "tokens=*" %%i in ('npm bin -g 2^>nul') do set "NPM_BIN=%%i"
     if "%NPM_BIN%"=="" (
         REM Try newer npm method
-        for /f "tokens=*" %%i in ('npm prefix -g 2^>nul') do set NPM_PREFIX=%%i
+        for /f "tokens=*" %%i in ('npm prefix -g 2^>nul') do set "NPM_PREFIX=%%i"
         if not "%NPM_PREFIX%"=="" (
-            call set NPM_BIN=%NPM_PREFIX%\bin
+            call set "NPM_BIN=%NPM_PREFIX%\bin"
         )
     )
     
@@ -358,7 +358,7 @@ echo.
 echo 📁 Installed in: %INSTALL_DIR%
 echo 📖 For help visit: https://github.com/ecbaldwin4/melq
 echo.
-set /p run_now="Would you like to start MELQ now? (y/n): "
+set /p "run_now=Would you like to start MELQ now? (y/n): "
 
 if /i "%run_now%"=="y" (
     echo.
