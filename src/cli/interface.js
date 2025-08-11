@@ -16,6 +16,7 @@ export class CLIInterface {
     this.mode = CHAT_MODES.DIRECTORY;
     this.messages = new Map(); // chatId -> messages[]
     this.chatColorAssignments = new Map(); // chatId -> { username -> colorName }
+    this.customNames = new Map(); // chatId -> custom name for "You"
     this.chatHeight = Math.max(10, process.stdout.rows - 6); // Reserve space for input area
     this.isConnecting = false;
     this.connectionStatus = 'disconnected';
@@ -153,6 +154,19 @@ export class CLIInterface {
     
     if (trimmedInput === '/colors') {
       this.showColorAssignments();
+      this.rl.prompt();
+      return;
+    }
+    
+    if (trimmedInput.startsWith('/name ')) {
+      this.setCustomName(trimmedInput.substring(6).trim());
+      this.rl.prompt();
+      return;
+    }
+    
+    if (trimmedInput === '/name') {
+      this.displaySystemMessage('Usage: /name <your_name>');
+      this.displaySystemMessage('Set a custom name for this chat (max 25 characters)');
       this.rl.prompt();
       return;
     }
@@ -530,7 +544,10 @@ export class CLIInterface {
         
         if (msg.from === 'You') {
           const msgText = this.wrapText(msg.text, maxTextWidth);
-          console.log(chalk.green(`  ${timeColor(`[${timestamp}]`)} ${chalk.bold('You')}: ${msgText}`));
+          const displayName = this.customNames.has(this.currentChat.id) 
+            ? this.customNames.get(this.currentChat.id) 
+            : 'You';
+          console.log(chalk.green(`  ${timeColor(`[${timestamp}]`)} ${chalk.bold(displayName)}: ${msgText}`));
         } else {
           const msgText = this.wrapText(msg.text, maxTextWidth);
           const userColor = this.getColorForUser(this.currentChat.id, msg.from);
@@ -643,7 +660,7 @@ export class CLIInterface {
     console.log(chalk.dim.cyan('╭' + inputLine + '╮'));
     
     // Show helpful commands
-    const commands = '/exit /help /clear /colors';
+    const commands = '/exit /help /clear /colors /name';
     const commandsText = `Commands: ${commands}`;
     const commandsPadding = Math.max(0, terminalWidth - commandsText.length - 4);
     const leftPad = Math.floor(commandsPadding / 2);
@@ -689,6 +706,32 @@ export class CLIInterface {
     }
   }
 
+  setCustomName(name) {
+    if (!this.currentChat) {
+      this.displaySystemMessage('❌ You must be in a chat to set a name.');
+      return;
+    }
+    
+    if (!name || name.length === 0) {
+      this.displaySystemMessage('❌ Name cannot be empty.');
+      return;
+    }
+    
+    if (name.length > 25) {
+      this.displaySystemMessage('❌ Name too long (max 25 characters).');
+      return;
+    }
+    
+    // Basic validation - only allow letters, numbers, spaces, and common punctuation
+    if (!/^[a-zA-Z0-9\s\-_.!?]+$/.test(name)) {
+      this.displaySystemMessage('❌ Name contains invalid characters. Use letters, numbers, spaces, and basic punctuation only.');
+      return;
+    }
+    
+    this.customNames.set(this.currentChat.id, name);
+    this.displaySystemMessage(`✅ Name set to "${name}" for this chat.`);
+  }
+
   showColorAssignments() {
     if (!this.currentChat || !this.chatColorAssignments.has(this.currentChat.id)) {
       this.displaySystemMessage('No color assignments yet in this chat.');
@@ -703,13 +746,18 @@ export class CLIInterface {
     
     this.displaySystemMessage('Current participants with their assigned colors:');
     for (const [username, colorFunc] of assignments.entries()) {
-      const coloredName = colorFunc(username);
+      let displayName = username;
+      if (username === 'You' && this.customNames.has(this.currentChat.id)) {
+        displayName = this.customNames.get(this.currentChat.id);
+      }
+      const coloredName = colorFunc(displayName);
       this.displaySystemMessage(`  ${coloredName}`);
     }
   }
 
   showChatHelp() {
-    this.displaySystemMessage('Chat commands: /exit (leave chat), /help (this help), /clear (refresh screen), /colors (show participants)');
+    this.displaySystemMessage('Chat commands: /exit (leave chat), /help (this help), /clear (refresh screen)');
+    this.displaySystemMessage('/colors (show participants), /name <name> (set custom name for this chat)');
     this.displaySystemMessage('Just type your message and press Enter to send it!');
     this.rl.prompt();
   }
