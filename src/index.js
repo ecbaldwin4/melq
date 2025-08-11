@@ -241,7 +241,7 @@ async function startHostModeWithOptions(node, port = 0, options = {}) {
   await startHostWithAutoClient(node, networkInfo);
 }
 
-async function startClientMode(node, connectionCode) {
+async function startClientMode(node, connectionCode, isInteractiveMode = false) {
   console.log(chalk.yellow(`\n🔗 Joining network: ${connectionCode}`));
   
   try {
@@ -276,12 +276,65 @@ async function startClientMode(node, connectionCode) {
     
     await startChatInterface(node, connectionInfo);
   } catch (error) {
-    console.error(chalk.red('Failed to join network:'), error.message);
-    console.log(chalk.yellow('\nPlease check:'));
-    console.log(chalk.gray('• Connection code is correct'));
-    console.log(chalk.gray('• Host network is running'));
-    console.log(chalk.gray('• Network connectivity'));
-    process.exit(1);
+    console.log(chalk.red('\n❌ Failed to join network'));
+    console.log(chalk.red('Error:'), error.message);
+    console.log(chalk.yellow('\nPossible issues:'));
+    console.log(chalk.gray('• Connection code is incorrect or malformed'));
+    console.log(chalk.gray('• Host network is not running'));
+    console.log(chalk.gray('• Network connectivity problems'));
+    console.log(chalk.gray('• Firewall blocking connection'));
+    
+    if (isInteractiveMode) {
+      // Interactive mode: show recovery options
+      await showConnectionErrorRecovery(node, connectionCode);
+    } else {
+      // Command-line mode: show helpful message and exit gracefully
+      console.log(chalk.yellow('\n💡 Suggestions:'));
+      console.log(chalk.gray('• Double-check the connection code'));
+      console.log(chalk.gray('• Try running: melq --join <different_code>'));
+      console.log(chalk.gray('• Or run: melq (for interactive menu)'));
+      console.log(chalk.gray('• Use: melq --help (for all options)'));
+      process.exit(1);
+    }
+  }
+}
+
+async function showConnectionErrorRecovery(node, failedConnectionCode) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  console.log(chalk.yellow('\n🔄 What would you like to do?'));
+  console.log(chalk.cyan('1. 🔁 Try a different connection code'));
+  console.log(chalk.cyan('2. 🔍 Scan for local networks'));
+  console.log(chalk.cyan('3. 🏠 Return to main menu'));
+  console.log(chalk.cyan('4. ❌ Exit MELQ'));
+  console.log(chalk.dim(`\nFailed code: ${failedConnectionCode}`));
+
+  const choice = await new Promise(resolve => {
+    rl.question(chalk.green('\nChoose an option (1-4): '), resolve);
+  });
+
+  rl.close();
+
+  switch (choice.trim()) {
+    case '1':
+      await promptForConnectionCode(node);
+      break;
+    case '2':
+      await discoverLocalNetworks(node);
+      break;
+    case '3':
+      await showInteractiveMenu(node);
+      break;
+    case '4':
+      console.log(chalk.gray('\nGoodbye! 👋'));
+      process.exit(0);
+      break;
+    default:
+      console.log(chalk.red('Invalid option. Please try again.'));
+      await showConnectionErrorRecovery(node, failedConnectionCode);
   }
 }
 
@@ -305,7 +358,7 @@ async function promptForConnectionCode(node) {
   rl.close();
 
   if (connectionCode.trim()) {
-    await startClientMode(node, connectionCode.trim());
+    await startClientMode(node, connectionCode.trim(), true); // Interactive mode
   } else {
     console.log(chalk.red('No connection code provided.'));
     await showInteractiveMenu(node);
@@ -352,7 +405,7 @@ async function discoverLocalNetworks(node) {
       await showInteractiveMenu(node);
     } else if (networkIndex >= 0 && networkIndex < networks.length) {
       const selectedNetwork = networks[networkIndex];
-      await startClientMode(node, selectedNetwork.connectionCode);
+      await startClientMode(node, selectedNetwork.connectionCode, true); // Interactive mode
     } else {
       console.log(chalk.red('Invalid selection.'));
       await discoverLocalNetworks(node);
