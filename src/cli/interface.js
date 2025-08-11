@@ -552,14 +552,12 @@ export class CLIInterface {
         if (msg.from === 'You') {
           const msgText = this.wrapText(msg.text, maxTextWidth);
           const displayName = this.getDisplayName(this.currentChat.id, 'You');
-          // Use consistent coloring for "You" as well
-          const userColor = this.getColorForUser(this.currentChat.id, 'You');
-          console.log(`  ${timeColor(`[${timestamp}]`)} ${userColor(chalk.bold(displayName))}: ${msgText}`);
+          console.log(chalk.green(`  ${timeColor(`[${timestamp}]`)} ${chalk.bold(displayName)}: ${msgText}`));
         } else {
           const msgText = this.wrapText(msg.text, maxTextWidth);
           const displayName = this.getDisplayName(this.currentChat.id, msg.from);
-          // Use hash name for color assignment but apply to display name
-          const userColor = this.getColorForUser(this.currentChat.id, msg.from);
+          // Use display name for color assignment to ensure custom names get colors
+          const userColor = this.getColorForUser(this.currentChat.id, displayName);
           console.log(`  ${timeColor(`[${timestamp}]`)} ${userColor(chalk.bold(displayName))}: ${msgText}`);
         }
         
@@ -810,8 +808,8 @@ export class CLIInterface {
     this.displaySystemMessage('Current participants with their assigned colors:');
     for (const [username, colorFunc] of assignments.entries()) {
       const displayName = this.getDisplayName(this.currentChat.id, username);
-      // Use hash name for color assignment but apply to display name
-      const displayColor = this.getColorForUser(this.currentChat.id, username);
+      // Get color for display name to match message display
+      const displayColor = this.getColorForUser(this.currentChat.id, displayName);
       const coloredName = displayColor(displayName);
       this.displaySystemMessage(`  ${coloredName}`);
     }
