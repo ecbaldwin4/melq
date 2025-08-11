@@ -403,7 +403,8 @@ export class CLIInterface {
 
     // Check if this is a name change notification
     if (messageData.text && messageData.text.startsWith('__NAME_CHANGE__:')) {
-      const customName = messageData.text.substring('__NAME_CHANGE__:'.length);
+      const customName = messageData.text.substring('__NAME_CHANGE__:'.length).trim();
+      console.log(`DEBUG: Received name change from ${fromNode}: "${customName}"`);
       this.handleNameChange(messageData.chatId, fromNode, customName);
       return; // Don't add name change messages to chat history
     }
@@ -714,6 +715,7 @@ export class CLIInterface {
   }
 
   setCustomName(name) {
+    console.log(`DEBUG: setCustomName called with "${name}"`);
     if (!this.currentChat) {
       this.displaySystemMessage('❌ You must be in a chat to set a name.');
       return;
@@ -785,6 +787,7 @@ export class CLIInterface {
     try {
       // Send name change notification to all peers
       const nameChangeMessage = `__NAME_CHANGE__:${name}`;
+      console.log(`DEBUG: Broadcasting name change "${name}" to ${targets.length} peers`);
       targets.forEach(nodeId => {
         this.node.sendMessage(this.currentChat.id, nameChangeMessage, nodeId);
       });
