@@ -405,20 +405,11 @@ export class CLIInterface {
   handleIncomingMessage(messageData) {
     const fromNode = messageData.fromNodeId.slice(-8);
 
-    // Debug: log all incoming messages
-    console.log(`DEBUG: Incoming message from ${fromNode}: "${messageData.text}"`);
-
     // Check if this is a name change notification
     if (messageData.text && messageData.text.startsWith('__NAME_CHANGE__:')) {
       const customName = messageData.text.substring('__NAME_CHANGE__:'.length).trim();
-      console.log(`DEBUG: Processing name change from ${fromNode}: "${customName}"`);
       this.handleNameChange(messageData.chatId, fromNode, customName);
       return; // Don't add name change messages to chat history
-    }
-
-    // Also check for partial matches to debug the issue
-    if (messageData.text && messageData.text.includes('__NAME_CHANGE__')) {
-      console.log(`DEBUG: Found partial name change match: "${messageData.text}"`);
     }
 
     if (!this.messages.has(messageData.chatId)) {
@@ -730,7 +721,6 @@ export class CLIInterface {
   }
 
   setCustomName(name) {
-    console.log(`DEBUG: setCustomName called with "${name}"`);
     if (!this.currentChat) {
       this.displaySystemMessage('❌ You must be in a chat to set a name.');
       return;
@@ -801,7 +791,6 @@ export class CLIInterface {
       // Remove oldest messages to stay within limit
       const messagesToRemove = messages.length - this.maxMessagesPerChat;
       messages.splice(0, messagesToRemove);
-      console.log(`DEBUG: Trimmed ${messagesToRemove} old messages from chat ${chatId}, now ${messages.length} messages`);
     }
   }
 
@@ -814,7 +803,6 @@ export class CLIInterface {
     try {
       // Send name change notification to all peers
       const nameChangeMessage = `__NAME_CHANGE__:${name}`;
-      console.log(`DEBUG: Broadcasting name change "${name}" to ${targets.length} peers`);
       targets.forEach(nodeId => {
         this.node.sendMessage(this.currentChat.id, nameChangeMessage, nodeId);
       });
