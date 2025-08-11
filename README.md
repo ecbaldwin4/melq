@@ -86,9 +86,9 @@ MELQ makes it incredibly easy to connect with friends anywhere in the world:
 
 When you host a network and choose "Local + Internet", MELQ automatically:
 
-1. **Uses Localtunnel First** - Instantly creates a secure tunnel with no signup required
+1. **Prefers Localtunnel** - Instantly creates a secure tunnel with no signup required
 2. **Provides Connection Code** - Share the generated `https://abcd123.loca.lt` URL
-3. **Fallback Options** - If localtunnel is unavailable, tries ngrok, serveo, or manual setup
+3. **Fallback Options** - If localtunnel fails, tries ngrok, serveo, or manual setup
 4. **Works Everywhere** - No router configuration or port forwarding needed
 
 ### 🚀 Hosting Options
@@ -102,13 +102,13 @@ Network Access Options:
 3. 🔧 Advanced options
 
 Tunneling Method:
-1. Auto (try localtunnel first - no account needed!) ← Recommended
-2. Localtunnel only (instant, no signup required)
+1. Auto (prefer localtunnel - instant, no signup!) ← Recommended  
+2. Localtunnel only (recommended - no account needed)
 3. ngrok only (requires account for persistent URLs)
 4. Manual setup (port forwarding)
 ```
 
-**Recommendation**: Choose option 2 (Local + Internet) with option 1 (Auto) for the easiest setup!
+**Recommendation**: Choose option 2 (Local + Internet) with option 1 (Auto) for the easiest setup! Auto mode prioritizes localtunnel for instant, no-signup access.
 
 ### 🔗 Connection Codes
 
@@ -300,10 +300,10 @@ melq
 ### Connection Issues
 
 **"Failed to create tunnel"**
-- Check your internet connection
-- MELQ tries localtunnel first (no account required), then ngrok, serveo
+- Check your internet connection  
+- MELQ prefers localtunnel first (no account required), then tries ngrok, serveo
 - If all tunnel services fail, MELQ provides manual setup instructions
-- Localtunnel is usually the most reliable option
+- Localtunnel is the preferred option for instant, no-signup access
 
 ## Development
 

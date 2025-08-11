@@ -120,8 +120,8 @@ async function startHostMode(node, port = 0) {
     
     // Show tunneling method options for Local + Internet
     console.log(chalk.yellow('\nTunneling Method:'));
-    console.log(chalk.cyan('1. Auto (try localtunnel first - no account needed!)'));
-    console.log(chalk.cyan('2. Localtunnel only (instant, no signup required)'));
+    console.log(chalk.cyan('1. Auto (prefer localtunnel - instant, no signup!)'));
+    console.log(chalk.cyan('2. Localtunnel only (recommended - no account needed)'));
     console.log(chalk.cyan('3. ngrok only (requires account for persistent URLs)'));
     console.log(chalk.cyan('4. Manual setup (port forwarding)'));
     
@@ -160,8 +160,8 @@ async function startHostMode(node, port = 0) {
       options.exposeToInternet = true;
       
       console.log(chalk.yellow('\nTunneling Method:'));
-      console.log(chalk.cyan('1. Auto (try localtunnel first - no account needed!)'));
-      console.log(chalk.cyan('2. Localtunnel only (instant, no signup required)'));
+      console.log(chalk.cyan('1. Auto (prefer localtunnel - instant, no signup!)'));
+      console.log(chalk.cyan('2. Localtunnel only (recommended - no account needed)'));
       console.log(chalk.cyan('3. ngrok only (requires account for persistent URLs)'));
       console.log(chalk.cyan('4. Manual setup (port forwarding)'));
       
@@ -771,8 +771,8 @@ function showHelp() {
   console.log(chalk.gray('  Share them with others to let them join'));
   
   console.log(chalk.cyan('\nInternet Access:'));
-  console.log(chalk.gray('  • Automatic tunneling via localtunnel (no account required!)'));
-  console.log(chalk.gray('  • Alternative tunneling with ngrok or serveo'));
+  console.log(chalk.gray('  • Preferred: localtunnel (instant, no account required!)'));
+  console.log(chalk.gray('  • Alternative: ngrok or serveo (may require accounts)'));
   console.log(chalk.gray('  • Manual setup with port forwarding'));
   console.log(chalk.gray('  • Local discovery for same network'));
   
