@@ -401,12 +401,20 @@ export class CLIInterface {
   handleIncomingMessage(messageData) {
     const fromNode = messageData.fromNodeId.slice(-8);
 
+    // Debug: log all incoming messages
+    console.log(`DEBUG: Incoming message from ${fromNode}: "${messageData.text}"`);
+
     // Check if this is a name change notification
     if (messageData.text && messageData.text.startsWith('__NAME_CHANGE__:')) {
       const customName = messageData.text.substring('__NAME_CHANGE__:'.length).trim();
-      console.log(`DEBUG: Received name change from ${fromNode}: "${customName}"`);
+      console.log(`DEBUG: Processing name change from ${fromNode}: "${customName}"`);
       this.handleNameChange(messageData.chatId, fromNode, customName);
       return; // Don't add name change messages to chat history
+    }
+
+    // Also check for partial matches to debug the issue
+    if (messageData.text && messageData.text.includes('__NAME_CHANGE__')) {
+      console.log(`DEBUG: Found partial name change match: "${messageData.text}"`);
     }
 
     if (!this.messages.has(messageData.chatId)) {
