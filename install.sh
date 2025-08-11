@@ -85,8 +85,22 @@ if ! command -v node &> /dev/null; then
         
         # Source nvm in current shell
         echo "2. Loading nvm..."
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        
+        # Try both possible nvm installation paths
+        if [ -s "$HOME/.config/nvm/nvm.sh" ]; then
+            export NVM_DIR="$HOME/.config/nvm"
+            \. "$NVM_DIR/nvm.sh"
+            echo "   Loaded nvm from ~/.config/nvm"
+        elif [ -s "$HOME/.nvm/nvm.sh" ]; then
+            export NVM_DIR="$HOME/.nvm"
+            \. "$NVM_DIR/nvm.sh"
+            echo "   Loaded nvm from ~/.nvm"
+        else
+            echo "❌ Could not find nvm installation"
+            echo "   Please run: source ~/.bashrc"
+            echo "   Then try running this installer again"
+            exit 1
+        fi
         
         # Install Node.js 22
         echo "3. Installing Node.js 22..."
@@ -153,8 +167,22 @@ if [ "$MAJOR_VERSION" -lt "16" ]; then
             curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
             
             echo "2. Loading nvm..."
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            # Try both possible nvm installation paths
+            if [ -s "$HOME/.config/nvm/nvm.sh" ]; then
+                export NVM_DIR="$HOME/.config/nvm"
+                \. "$NVM_DIR/nvm.sh"
+                echo "   Loaded nvm from ~/.config/nvm"
+            elif [ -s "$HOME/.nvm/nvm.sh" ]; then
+                export NVM_DIR="$HOME/.nvm"
+                \. "$NVM_DIR/nvm.sh"
+                echo "   Loaded nvm from ~/.nvm"
+            else
+                echo "❌ Could not find nvm installation"
+                echo "   Please run: source ~/.bashrc"
+                echo "   Then try running this installer again"
+                exit 1
+            fi
             
             echo "3. Installing Node.js 22..."
             nvm install 22

@@ -48,13 +48,25 @@ fi
 if ! command -v npm &> /dev/null; then
     echo "⚠️  npm not found. Trying to load Node.js environment..."
     
-    # Try to load nvm
-    export NVM_DIR="$HOME/.nvm"
-    if [ -s "$NVM_DIR/nvm.sh" ]; then
-        echo "🔄 Loading nvm..."
+    # Try to load nvm from both possible installation paths
+    echo "🔄 Loading nvm..."
+    if [ -s "$HOME/.config/nvm/nvm.sh" ]; then
+        export NVM_DIR="$HOME/.config/nvm"
         \. "$NVM_DIR/nvm.sh"
+        echo "   Loaded nvm from ~/.config/nvm"
+    elif [ -s "$HOME/.nvm/nvm.sh" ]; then
+        export NVM_DIR="$HOME/.nvm"
+        \. "$NVM_DIR/nvm.sh"
+        echo "   Loaded nvm from ~/.nvm"
+    else
+        echo "❌ nvm not found in either ~/.config/nvm or ~/.nvm"
+        echo "💡 Please run: source ~/.bashrc"
+        echo "   Then try: ./fix-path.sh again"
+        echo "   Or run directly: node src/index.js"
+        exit 1
+    fi
         
-        # Check if npm is now available
+    # Check if npm is now available
         if command -v npm &> /dev/null; then
             echo "✅ npm loaded successfully!"
             
@@ -73,8 +85,9 @@ if ! command -v npm &> /dev/null; then
                     echo "🔄 Adding nvm to $SHELL_PROFILE for future sessions..."
                     echo "" >> "$SHELL_PROFILE"
                     echo "# Added by MELQ fix-path script" >> "$SHELL_PROFILE"
-                    echo 'export NVM_DIR="$HOME/.nvm"' >> "$SHELL_PROFILE"
-                    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> "$SHELL_PROFILE"
+                    echo 'export NVM_DIR="$HOME/.config/nvm"' >> "$SHELL_PROFILE"
+                    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm' >> "$SHELL_PROFILE"
+                    echo '[ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"  # Fallback path' >> "$SHELL_PROFILE"
                     echo "✅ nvm will be available in new terminal sessions"
                 else
                     echo "✅ nvm already configured in $SHELL_PROFILE"
@@ -87,11 +100,6 @@ if ! command -v npm &> /dev/null; then
             echo "   Or run directly: node src/index.js"
             exit 1
         fi
-    else
-        echo "❌ nvm not found. Please install Node.js first."
-        echo "💡 Or run directly: node src/index.js"
-        exit 1
-    fi
 fi
 
 # Get npm global prefix
