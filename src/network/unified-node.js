@@ -2,6 +2,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import Fastify from 'fastify';
 import crypto from 'crypto';
 import { networkInterfaces } from 'os';
+import readline from 'readline';
 import { MLKEM } from '../crypto/mlkem.js';
 import { AESCrypto } from '../crypto/aes.js';
 import { NetworkDiscovery } from './discovery.js';
@@ -34,6 +35,7 @@ export class UnifiedNode {
     this.chatRooms = new Map(); // chatId -> room info
     this.chatHistory = new Map(); // chatId -> messages[]
     this.hostPort = null;
+    this.sessionPassword = null; // Password for protected sessions
     
     // Client mode properties
     this.coordinatorWs = null;
@@ -67,10 +69,11 @@ export class UnifiedNode {
 
   // HOST MODE METHODS
   async startAsHost(port = 0, options = {}) {
-    const { exposeToInternet = false, tunnelMethod = 'auto', customDomain } = options;
-    console.log(chalk.gray(`🔧 Host options: exposeToInternet=${exposeToInternet}, tunnelMethod=${tunnelMethod}`));
+    const { exposeToInternet = false, tunnelMethod = 'auto', customDomain, password } = options;
+    console.log(chalk.gray(`🔧 Host options: exposeToInternet=${exposeToInternet}, tunnelMethod=${tunnelMethod}, password=${!!password}`));
     await this.initialize();
     this.mode = NODE_MODES.HOST;
+    this.sessionPassword = password || null;
     
     // Find available port if default port is in use (multi-node support)
     const requestedPort = port || 42045;
@@ -203,13 +206,52 @@ export class UnifiedNode {
 
   handleHostMessage(ws, message) {
     switch (message.type) {
+      case 'password_challenge':
+        // Client is requesting password challenge
+        if (ws) {
+          if (this.sessionPassword) {
+            ws.send(JSON.stringify({ 
+              type: 'password_required',
+              message: 'This session is password protected. Please enter the password.'
+            }));
+          } else {
+            ws.send(JSON.stringify({ 
+              type: 'password_not_required' 
+            }));
+          }
+        }
+        break;
+
+      case 'password_attempt':
+        // Client is attempting password authentication
+        if (ws) {
+          if (!this.sessionPassword) {
+            ws.send(JSON.stringify({ type: 'password_accepted' }));
+          } else if (message.password === this.sessionPassword) {
+            ws.send(JSON.stringify({ type: 'password_accepted' }));
+          } else {
+            ws.send(JSON.stringify({ 
+              type: 'password_rejected',
+              message: 'Incorrect password. Access denied.'
+            }));
+            // Close connection after failed password attempt
+            setTimeout(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.close(1008, 'Invalid password');
+              }
+            }, 1000);
+          }
+        }
+        break;
+
       case 'register':
         if (ws) {
           this.connectedNodes.set(message.nodeId, {
             socket: ws,
             publicKey: message.publicKey,
             address: message.address,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            authenticated: message.authenticated || false
           });
           ws.send(JSON.stringify({ type: 'registered', nodeId: message.nodeId }));
         }
@@ -504,9 +546,9 @@ export class UnifiedNode {
         this.startHeartbeat();
         
         try {
-          // Wait for registration to complete before auto-discovery
-          await this.register();
-          this.safeLog('✅ Registration completed', chalk.green);
+          // First check if password is required
+          await this.checkPasswordRequirement();
+          this.safeLog('✅ Authentication completed', chalk.green);
           
           // Now immediately discover peers and get chats
           await this.discoverNodes();
@@ -561,6 +603,26 @@ export class UnifiedNode {
 
   handleClientMessage(message) {
     switch (message.type) {
+      case 'password_required':
+        // Server requires password authentication
+        this.handlePasswordChallenge(message.message);
+        break;
+
+      case 'password_not_required':
+        // Server doesn't require password, proceed with registration
+        this.attemptRegistration(true);
+        break;
+
+      case 'password_accepted':
+        // Password was correct, proceed with registration
+        this.attemptRegistration(true);
+        break;
+
+      case 'password_rejected':
+        // Password was incorrect
+        this.handlePasswordRejection(message.message);
+        break;
+
       case 'registered':
         this.safeLog(`Registered in network as ${message.nodeId}`, chalk.green);
         
@@ -663,7 +725,58 @@ export class UnifiedNode {
     }
   }
 
-  register() {
+  checkPasswordRequirement() {
+    return new Promise((resolve, reject) => {
+      // Set up a one-time listener for password response
+      this.passwordResolver = resolve;
+      this.passwordTimeout = setTimeout(() => {
+        this.passwordResolver = null;
+        reject(new Error('Password check timeout'));
+      }, 10000);
+      
+      this.send({
+        type: 'password_challenge',
+        nodeId: this.nodeId
+      });
+    });
+  }
+
+  handlePasswordChallenge(message) {
+    if (this.cliInterface) {
+      // Use CLI interface for password input
+      this.cliInterface.promptForPassword(message, (password) => {
+        this.submitPassword(password);
+      });
+    } else {
+      // Fallback to console input
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+      });
+      
+      rl.question(`${message}\nEnter password: `, (password) => {
+        rl.close();
+        this.submitPassword(password);
+      });
+    }
+  }
+
+  submitPassword(password) {
+    this.send({
+      type: 'password_attempt',
+      password: password
+    });
+  }
+
+  attemptRegistration(authenticated = false) {
+    // Resolve password challenge if waiting
+    if (this.passwordResolver) {
+      clearTimeout(this.passwordTimeout);
+      this.passwordResolver();
+      this.passwordResolver = null;
+    }
+
+    // Now proceed with registration
     return new Promise((resolve, reject) => {
       // Set up a one-time listener for registration confirmation
       this.registrationResolver = resolve;
@@ -676,9 +789,25 @@ export class UnifiedNode {
         type: 'register',
         nodeId: this.nodeId,
         publicKey: this.keyPair.publicKey,
-        address: `direct://${this.nodeId}`
+        address: `direct://${this.nodeId}`,
+        authenticated: authenticated
       });
     });
+  }
+
+  handlePasswordRejection(message) {
+    this.safeLog(`❌ ${message}`, chalk.red);
+    
+    // Resolve password challenge with error
+    if (this.passwordResolver) {
+      clearTimeout(this.passwordTimeout);
+      this.passwordResolver = null;
+      throw new Error('Password authentication failed');
+    }
+  }
+
+  register() {
+    return this.attemptRegistration();
   }
 
   async discoverNodes() {

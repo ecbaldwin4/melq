@@ -1475,6 +1475,36 @@ export class CLIInterface {
     this.rl.prompt();
   }
 
+  promptForPassword(message, callback) {
+    // Temporarily close current readline interface
+    if (this.rl) {
+      this.rl.close();
+    }
+    
+    // Create temporary password input interface
+    const tempRl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    
+    console.clear();
+    console.log(chalk.yellow('🔒 Password Required'));
+    console.log(chalk.gray('═'.repeat(50)));
+    console.log(chalk.cyan(message));
+    console.log('');
+    
+    tempRl.question(chalk.green('Enter password: '), (password) => {
+      tempRl.close();
+      
+      // Restore the main interface
+      this.setupInterface();
+      this.rl.prompt();
+      
+      // Execute callback with password
+      callback(password);
+    });
+  }
+
   // ===============================
   // HOST SHUTDOWN & CONNECTION HANDLING
   // ===============================

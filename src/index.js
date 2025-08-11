@@ -14,8 +14,9 @@ program
   .option('-h, --host [port]', 'Host a new network (optional port)')
   .option('--internet', 'Expose hosted network to internet (with --host)')
   .option('--local-only', 'Host network for local access only (with --host)')
+  .option('--password <password>', 'Set password for session (with --host)')
   .option('--tunnel <method>', 'Specify tunneling method: ngrok, localtunnel, serveo, manual')
-  .option('--update', 'Update MELQ to the latest version from GitHub')
+  .option('--update', 'Update MELQ to the latest version from npm registry')
   .option('--check-updates', 'Check if updates are available without installing')
   .action(async (options) => {
     if (options.update) {
@@ -40,11 +41,12 @@ program
         const port = parseInt(options.host) || 0;
         const hostOptions = {
           exposeToInternet: options.internet || (!options.localOnly && !process.stdout.isTTY),
-          tunnelMethod: options.tunnel || 'auto'
+          tunnelMethod: options.tunnel || 'auto',
+          password: options.password || undefined
         };
         
         // Skip interactive mode if options are provided via CLI
-        if (options.internet || options.localOnly || options.tunnel) {
+        if (options.internet || options.localOnly || options.tunnel || options.password) {
           await startHostModeWithOptions(node, port, hostOptions);
         } else {
           await startHostMode(node, port);
@@ -107,10 +109,11 @@ async function startHostMode(node, port = 0) {
   console.log(chalk.yellow('\nNetwork Access Options:'));
   console.log(chalk.cyan('1. 🏠 Local network only (same WiFi/LAN)'));
   console.log(chalk.cyan('2. 🌐 Local + Internet (anyone can join)'));
-  console.log(chalk.cyan('3. 🔧 Advanced options'));
+  console.log(chalk.cyan('3. 🔒 Password-protected session'));
+  console.log(chalk.cyan('4. 🔧 Advanced options'));
 
   const accessChoice = await new Promise(resolve => {
-    rl.question(chalk.green('\nChoose access level (1-3): '), resolve);
+    rl.question(chalk.green('\nChoose access level (1-4): '), resolve);
   });
 
   let options = { exposeToInternet: false };
@@ -151,7 +154,80 @@ async function startHostMode(node, port = 0) {
         options.tunnelMethod = 'auto';
     }
   } else if (accessChoice.trim() === '3') {
+    // Password-protected session
+    console.log(chalk.yellow('\n🔒 Password-Protected Session Setup'));
+    console.log(chalk.gray('Set a password that others will need to join your session.'));
+    
+    const password = await new Promise(resolve => {
+      rl.question(chalk.green('Enter session password: '), resolve);
+    });
+    
+    if (!password.trim()) {
+      console.log(chalk.red('Password cannot be empty. Falling back to no password.'));
+    } else {
+      options.password = password.trim();
+      console.log(chalk.green('✓ Password set! Only users with this password can join.'));
+    }
+    
+    // Ask about internet exposure for password-protected sessions
+    const internetChoice = await new Promise(resolve => {
+      rl.question(chalk.green('Also expose to internet? (Y/n): '), resolve);
+    });
+    
+    if (!internetChoice.toLowerCase().startsWith('n')) {
+      options.exposeToInternet = true;
+      
+      console.log(chalk.yellow('\nTunneling Method:'));
+      console.log(chalk.cyan('1. Auto (prefer localtunnel - instant, no signup!)'));
+      console.log(chalk.cyan('2. Localtunnel only (recommended - no account needed)'));
+      console.log(chalk.cyan('3. ngrok only (requires account for persistent URLs)'));
+      console.log(chalk.cyan('4. Manual setup (port forwarding)'));
+      
+      const methodChoice = await new Promise(resolve => {
+        rl.question(chalk.green('Choose method (1-4): '), resolve);
+      });
+      
+      switch (methodChoice.trim()) {
+        case '2':
+          options.tunnelMethod = 'localtunnel';
+          break;
+        case '3':
+          options.tunnelMethod = 'ngrok';
+          break;
+        case '4':
+          options.tunnelMethod = 'manual';
+          
+          const customDomain = await new Promise(resolve => {
+            rl.question(chalk.green('Custom domain/IP (optional): '), resolve);
+          });
+          
+          if (customDomain.trim()) {
+            options.customDomain = customDomain.trim();
+          }
+          break;
+        default:
+          options.tunnelMethod = 'auto';
+      }
+    }
+  } else if (accessChoice.trim() === '4') {
     // Advanced options
+    console.log(chalk.yellow('\n🔧 Advanced Configuration'));
+    
+    const passwordChoice = await new Promise(resolve => {
+      rl.question(chalk.green('Set password protection? (y/N): '), resolve);
+    });
+    
+    if (passwordChoice.toLowerCase().startsWith('y')) {
+      const password = await new Promise(resolve => {
+        rl.question(chalk.green('Enter session password: '), resolve);
+      });
+      
+      if (password.trim()) {
+        options.password = password.trim();
+        console.log(chalk.green('✓ Password protection enabled.'));
+      }
+    }
+    
     const internetChoice = await new Promise(resolve => {
       rl.question(chalk.green('Expose to internet? (y/N): '), resolve);
     });
@@ -214,12 +290,20 @@ async function startHostMode(node, port = 0) {
   
   // Show connection codes
   console.log(chalk.blue('\n📋 Connection Codes:'));
+  if (options.password) {
+    console.log(chalk.yellow('🔒 Password-Protected Session'));
+  }
   console.log(chalk.cyan('🏠 Local (same network):'));
   console.log(chalk.bgCyan.black(` ${networkInfo.localConnectionCode} `));
   
   if (networkInfo.hasInternet) {
     console.log(chalk.cyan('\n🌐 Internet (anywhere):'));
     console.log(chalk.bgGreen.black(` ${networkInfo.internetConnectionCode} `));
+  }
+  
+  if (options.password) {
+    console.log(chalk.red('\n⚠️  Password required to join this session'));
+    console.log(chalk.gray('Users will be prompted for password when connecting'));
   }
   
   console.log(chalk.gray('\nShare these codes with others so they can join!'));
@@ -250,12 +334,20 @@ async function startHostModeWithOptions(node, port = 0, options = {}) {
   
   // Show connection codes
   console.log(chalk.blue('\n📋 Connection Codes:'));
+  if (options.password) {
+    console.log(chalk.yellow('🔒 Password-Protected Session'));
+  }
   console.log(chalk.cyan('🏠 Local (same network):'));
   console.log(chalk.bgCyan.black(` ${networkInfo.localConnectionCode} `));
   
   if (networkInfo.hasInternet) {
     console.log(chalk.cyan('\n🌐 Internet (anywhere):'));
     console.log(chalk.bgGreen.black(` ${networkInfo.internetConnectionCode} `));
+  }
+  
+  if (options.password) {
+    console.log(chalk.red('\n⚠️  Password required to join this session'));
+    console.log(chalk.gray('Users will be prompted for password when connecting'));
   }
   
   console.log(chalk.gray('\nShare these codes with others so they can join!'));
@@ -678,50 +770,49 @@ async function handleCheckUpdatesCommand() {
   
   try {
     const { execSync } = await import('child_process');
+    const fs = await import('fs');
     
-    // Check if we're in a git repository
+    // Get current version from package.json
+    let currentVersion = '1.0.0';
     try {
-      execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+      const packagePath = new URL('../package.json', import.meta.url).pathname;
+      const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+      currentVersion = packageJson.version;
     } catch (error) {
-      console.log(chalk.red('❌ This MELQ installation is not a git repository.'));
-      console.log(chalk.yellow('💡 To enable updates, reinstall using:'));
-      console.log(chalk.white('   git clone https://github.com/ecbaldwin4/melq.git'));
-      console.log(chalk.white('   cd melq && npm install'));
-      process.exit(1);
+      console.log(chalk.yellow('⚠️  Could not read current version, assuming 1.0.0'));
     }
     
-    console.log(chalk.yellow('📡 Checking for updates...'));
+    console.log(chalk.yellow('📡 Checking npm registry for updates...'));
+    console.log(chalk.gray(`   Current version: ${currentVersion}`));
     
-    // Fetch latest changes
-    console.log(chalk.gray('🔍 Fetching latest changes from GitHub...'));
-    execSync('git fetch origin', { stdio: 'pipe' });
-    
-    // Check if we're up to date
-    const currentHash = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
-    const remoteHash = execSync('git rev-parse origin/master', { encoding: 'utf8' }).trim();
-    
-    console.log(chalk.gray(`   Local version:  ${currentHash.substring(0, 8)}`));
-    console.log(chalk.gray(`   Remote version: ${remoteHash.substring(0, 8)}`));
-    
-    if (currentHash === remoteHash) {
-      console.log(chalk.green('✅ MELQ is already up to date!'));
-      console.log(chalk.gray('   No updates available.'));
-      process.exit(0);
+    // Check npm registry for latest version
+    try {
+      const result = execSync('npm view melq version', { encoding: 'utf8', timeout: 10000, stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+      const latestVersion = result;
+      
+      console.log(chalk.gray(`   Latest version:  ${latestVersion}`));
+      
+      if (currentVersion === latestVersion) {
+        console.log(chalk.green('✅ MELQ is already up to date!'));
+        console.log(chalk.gray('   No updates available.'));
+      } else {
+        console.log(chalk.green('🆕 Update available!'));
+        console.log(chalk.yellow(`   ${currentVersion} → ${latestVersion}`));
+        console.log(chalk.blue('\n💡 Run "melq --update" to install the update.'));
+        console.log(chalk.dim('   Or use: npm update -g melq'));
+      }
+      
+    } catch (error) {
+      // Most likely this is a 404 error (package not found) for development installations
+      console.log(chalk.blue('📦 This appears to be a development installation.'));
+      console.log(chalk.gray('   Package not yet published to npm registry.'));
+      console.log(chalk.yellow('\n💡 You have the latest development version!'));
     }
-    
-    // Show what updates are available
-    const commits = execSync('git log --oneline HEAD..origin/master', { encoding: 'utf8' });
-    const commitLines = commits.trim().split('\n').filter(line => line.trim());
-    const commitCount = commitLines.length;
-    
-    console.log(chalk.green(`🆕 ${commitCount} update${commitCount === 1 ? '' : 's'} available!`));
-    console.log(chalk.yellow('\n📋 Recent changes:'));
-    console.log(chalk.cyan(commits));
-    console.log(chalk.blue('💡 Run "melq --update" to install updates.'));
     
   } catch (error) {
     console.error(chalk.red('❌ Update check failed:'), error.message);
-    process.exit(1);
+    console.log(chalk.blue('\n💡 To manually update:'));
+    console.log(chalk.white('   npm install -g melq@latest'));
   }
 }
 
@@ -732,46 +823,44 @@ async function handleUpdateCommand() {
   try {
     const { execSync } = await import('child_process');
     const fs = await import('fs');
-    const path = await import('path');
     
-    // Check if we're in a git repository
+    // Get current version
+    let currentVersion = '1.0.0';
     try {
-      execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+      const packagePath = new URL('../package.json', import.meta.url).pathname;
+      const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+      currentVersion = packageJson.version;
     } catch (error) {
-      console.log(chalk.red('❌ This MELQ installation is not a git repository.'));
-      console.log(chalk.yellow('💡 To enable updates, reinstall using:'));
-      console.log(chalk.white('   git clone https://github.com/ecbaldwin4/melq.git'));
-      console.log(chalk.white('   cd melq && npm install'));
-      process.exit(1);
+      console.log(chalk.yellow('⚠️  Could not read current version, proceeding with update...'));
     }
     
     console.log(chalk.yellow('📡 Checking for updates...'));
+    console.log(chalk.gray(`   Current version: ${currentVersion}`));
     
-    // Fetch latest changes
-    console.log(chalk.gray('🔍 Fetching latest changes from GitHub...'));
-    execSync('git fetch origin', { stdio: 'pipe' });
-    
-    // Check if we're up to date
-    const currentHash = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
-    const remoteHash = execSync('git rev-parse origin/master', { encoding: 'utf8' }).trim();
-    
-    console.log(chalk.gray(`   Local version:  ${currentHash.substring(0, 8)}`));
-    console.log(chalk.gray(`   Remote version: ${remoteHash.substring(0, 8)}`));
-    
-    if (currentHash === remoteHash) {
-      console.log(chalk.green('✅ MELQ is already up to date!'));
-      console.log(chalk.gray('   No updates available.'));
-      process.exit(0);
+    // Check if update is available
+    try {
+      const result = execSync('npm view melq version', { encoding: 'utf8', timeout: 10000, stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+      const latestVersion = result;
+      
+      console.log(chalk.gray(`   Latest version:  ${latestVersion}`));
+      
+      if (currentVersion === latestVersion) {
+        console.log(chalk.green('✅ MELQ is already up to date!'));
+        console.log(chalk.gray('   No updates available.'));
+        return;
+      }
+      
+      console.log(chalk.green('🆕 Update available!'));
+      console.log(chalk.yellow(`   ${currentVersion} → ${latestVersion}`));
+      
+    } catch (error) {
+      // Most likely this is a 404 error (package not found) for development installations
+      console.log(chalk.blue('📦 This appears to be a development installation.'));
+      console.log(chalk.gray('   Package not yet published to npm registry.'));
+      console.log(chalk.yellow('💡 You already have the latest development version!'));
+      console.log(chalk.dim('   No update needed for development installations.'));
+      return;
     }
-    
-    // Show what will be updated
-    const commits = execSync('git log --oneline HEAD..origin/master', { encoding: 'utf8' });
-    const commitLines = commits.trim().split('\n').filter(line => line.trim());
-    const commitCount = commitLines.length;
-    
-    console.log(chalk.green(`🆕 ${commitCount} update${commitCount === 1 ? '' : 's'} available!`));
-    console.log(chalk.yellow('\n📋 Recent changes:'));
-    console.log(chalk.cyan(commits));
     
     // Ask for confirmation
     const rl = readline.createInterface({
@@ -780,52 +869,48 @@ async function handleUpdateCommand() {
     });
     
     const confirm = await new Promise(resolve => {
-      rl.question(chalk.green('Update to latest version? (y/N): '), resolve);
+      rl.question(chalk.green('Update to latest version? (Y/n): '), resolve);
     });
     
     rl.close();
     
-    if (!confirm.toLowerCase().startsWith('y')) {
+    if (confirm.toLowerCase().startsWith('n')) {
       console.log(chalk.yellow('Update cancelled.'));
-      process.exit(0);
+      return;
     }
     
     console.log(chalk.yellow('🔄 Updating MELQ...'));
+    console.log(chalk.gray('   This may take a moment...'));
     
-    // Check for uncommitted changes
+    // Update via npm
     try {
-      const status = execSync('git status --porcelain', { encoding: 'utf8' });
-      if (status.trim()) {
-        console.log(chalk.yellow('⚠️  You have uncommitted changes. Stashing them...'));
-        execSync('git stash push -m "melq-auto-update-stash"', { stdio: 'pipe' });
+      console.log(chalk.cyan('📦 Installing latest version...'));
+      execSync('npm install -g melq@latest', { stdio: 'pipe', timeout: 60000 });
+      
+      console.log(chalk.green('✅ MELQ successfully updated!'));
+      console.log(chalk.yellow('\n🚀 Update complete! MELQ is ready to use.'));
+      console.log(chalk.dim('   Run "melq" to start the updated version.'));
+      
+    } catch (updateError) {
+      console.log(chalk.red('❌ npm update failed. Trying alternative method...'));
+      
+      // Try alternative update method
+      try {
+        execSync('npm uninstall -g melq', { stdio: 'pipe' });
+        execSync('npm install -g melq', { stdio: 'pipe', timeout: 60000 });
+        console.log(chalk.green('✅ MELQ successfully updated using alternative method!'));
+      } catch (altError) {
+        throw updateError; // Throw original error
       }
-    } catch (error) {
-      console.log(chalk.red('❌ Failed to stash changes:'), error.message);
-      process.exit(1);
     }
-    
-    // Pull latest changes
-    console.log(chalk.cyan('⬇️  Pulling latest changes...'));
-    execSync('git pull origin master', { stdio: 'pipe' });
-    
-    // Update dependencies
-    console.log(chalk.cyan('📦 Updating dependencies...'));
-    execSync('npm install', { stdio: 'pipe' });
-    
-    // Get new version
-    const newHash = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
-    
-    console.log(chalk.green('✅ MELQ successfully updated!'));
-    console.log(chalk.gray(`   Previous: ${currentHash.substring(0, 8)}`));
-    console.log(chalk.gray(`   Current:  ${newHash.substring(0, 8)}`));
-    console.log(chalk.yellow('\n🚀 Run "melq" to use the updated version!'));
     
   } catch (error) {
     console.error(chalk.red('❌ Update failed:'), error.message);
     console.log(chalk.yellow('\n🔧 Manual update instructions:'));
-    console.log(chalk.white('   git pull origin master'));
-    console.log(chalk.white('   npm install'));
-    process.exit(1);
+    console.log(chalk.white('   npm install -g melq@latest'));
+    console.log(chalk.dim('\nIf that fails, try:'));
+    console.log(chalk.white('   npm uninstall -g melq'));
+    console.log(chalk.white('   npm install -g melq'));
   }
 }
 
@@ -833,13 +918,14 @@ function showHelp() {
   console.log(chalk.yellow('\n📖 MELQ Help'));
   console.log(chalk.gray('═'.repeat(50)));
   console.log(chalk.cyan('\nQuick Start:'));
-  console.log(chalk.white('  melq                    ') + chalk.gray('Interactive menu'));
-  console.log(chalk.white('  melq --host             ') + chalk.gray('Host a new network'));
-  console.log(chalk.white('  melq --host --internet  ') + chalk.gray('Host with internet access'));
-  console.log(chalk.white('  melq --host --local-only') + chalk.gray('Host for local network only'));
-  console.log(chalk.white('  melq --join <code>      ') + chalk.gray('Join existing network'));
-  console.log(chalk.white('  melq --update           ') + chalk.gray('Update to latest version'));
-  console.log(chalk.white('  melq --check-updates    ') + chalk.gray('Check if updates are available'));
+  console.log(chalk.white('  melq                          ') + chalk.gray('Interactive menu'));
+  console.log(chalk.white('  melq --host                   ') + chalk.gray('Host a new network'));
+  console.log(chalk.white('  melq --host --internet        ') + chalk.gray('Host with internet access'));
+  console.log(chalk.white('  melq --host --local-only      ') + chalk.gray('Host for local network only'));
+  console.log(chalk.white('  melq --host --password <pass> ') + chalk.gray('Host password-protected session'));
+  console.log(chalk.white('  melq --join <code>            ') + chalk.gray('Join existing network'));
+  console.log(chalk.white('  melq --update                 ') + chalk.gray('Update to latest version'));
+  console.log(chalk.white('  melq --check-updates          ') + chalk.gray('Check if updates are available'));
   
   console.log(chalk.cyan('\nConnection Codes:'));
   console.log(chalk.gray('  Local: melq://192.168.1.100:3000'));
@@ -857,10 +943,12 @@ function showHelp() {
   console.log(chalk.gray('  • All messages are encrypted with post-quantum ML-KEM-768'));
   console.log(chalk.gray('  • Direct P2P connections (no central server)'));
   console.log(chalk.gray('  • Messages never stored unencrypted'));
+  console.log(chalk.gray('  • Optional password protection for sessions'));
   
   console.log(chalk.cyan('\nExamples:'));
   console.log(chalk.white('  melq --host --internet'));
   console.log(chalk.white('  melq --host --tunnel ngrok'));
+  console.log(chalk.white('  melq --host --password mypass'));
   console.log(chalk.white('  melq --join melq://192.168.1.100:3000'));
   console.log(chalk.white('  melq --join https://abc123.ngrok.io'));
   console.log(chalk.white('  melq --join 203.0.113.1:3000'));
