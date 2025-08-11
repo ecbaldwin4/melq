@@ -16,7 +16,7 @@ export class CLIInterface {
     this.mode = CHAT_MODES.DIRECTORY;
     this.messages = new Map(); // chatId -> messages[]
     this.chatColorAssignments = new Map(); // chatId -> { username -> colorName }
-    this.customNames = new Map(); // chatId -> custom name for "You"
+    this.customNames = new Map(); // chatId -> Map(nodeId -> custom name)
     this.chatHeight = Math.max(10, process.stdout.rows - 6); // Reserve space for input area
     this.isConnecting = false;
     this.connectionStatus = 'disconnected';
@@ -401,6 +401,13 @@ export class CLIInterface {
   handleIncomingMessage(messageData) {
     const fromNode = messageData.fromNodeId.slice(-8);
 
+    // Check if this is a name change notification
+    if (messageData.text.startsWith('__NAME_CHANGE__:')) {
+      const customName = messageData.text.substring('__NAME_CHANGE__:'.length);
+      this.handleNameChange(messageData.chatId, fromNode, customName);
+      return; // Don't add name change messages to chat history
+    }
+
     if (!this.messages.has(messageData.chatId)) {
       this.messages.set(messageData.chatId, []);
     }
@@ -544,14 +551,13 @@ export class CLIInterface {
         
         if (msg.from === 'You') {
           const msgText = this.wrapText(msg.text, maxTextWidth);
-          const displayName = this.customNames.has(this.currentChat.id) 
-            ? this.customNames.get(this.currentChat.id) 
-            : 'You';
+          const displayName = this.getDisplayName(this.currentChat.id, 'You');
           console.log(chalk.green(`  ${timeColor(`[${timestamp}]`)} ${chalk.bold(displayName)}: ${msgText}`));
         } else {
           const msgText = this.wrapText(msg.text, maxTextWidth);
+          const displayName = this.getDisplayName(this.currentChat.id, msg.from);
           const userColor = this.getColorForUser(this.currentChat.id, msg.from);
-          console.log(`  ${timeColor(`[${timestamp}]`)} ${userColor(chalk.bold(msg.from))}: ${msgText}`);
+          console.log(`  ${timeColor(`[${timestamp}]`)} ${userColor(chalk.bold(displayName))}: ${msgText}`);
         }
         
         // Add some spacing between message groups
@@ -728,8 +734,62 @@ export class CLIInterface {
       return;
     }
     
-    this.customNames.set(this.currentChat.id, name);
+    // Store the name locally
+    if (!this.customNames.has(this.currentChat.id)) {
+      this.customNames.set(this.currentChat.id, new Map());
+    }
+    this.customNames.get(this.currentChat.id).set('You', name);
+    
+    // Broadcast name change to all participants
+    this.broadcastNameChange(name);
+    
     this.displaySystemMessage(`✅ Name set to "${name}" for this chat.`);
+  }
+
+  handleNameChange(chatId, fromNode, customName) {
+    // Store the custom name for this user in this chat
+    if (!this.customNames.has(chatId)) {
+      this.customNames.set(chatId, new Map());
+    }
+    
+    const chatNames = this.customNames.get(chatId);
+    const previousName = chatNames.get(fromNode);
+    chatNames.set(fromNode, customName);
+    
+    // Show notification if we're currently in this chat
+    if (this.currentChat && this.currentChat.id === chatId) {
+      if (previousName) {
+        this.displaySystemMessage(`${previousName} is now known as ${customName}`);
+      } else {
+        this.displaySystemMessage(`${fromNode} is now known as ${customName}`);
+      }
+    }
+  }
+
+  getDisplayName(chatId, nodeId) {
+    if (!this.customNames.has(chatId)) {
+      return nodeId === 'You' ? 'You' : nodeId;
+    }
+    
+    const chatNames = this.customNames.get(chatId);
+    return chatNames.get(nodeId) || (nodeId === 'You' ? 'You' : nodeId);
+  }
+
+  broadcastNameChange(name) {
+    if (!this.currentChat) return;
+    
+    const targets = Array.from(this.node.peerKeys.keys());
+    if (targets.length === 0) return;
+    
+    try {
+      // Send name change notification to all peers
+      const nameChangeMessage = `__NAME_CHANGE__:${name}`;
+      targets.forEach(nodeId => {
+        this.node.sendMessage(this.currentChat.id, nameChangeMessage, nodeId);
+      });
+    } catch (error) {
+      console.error('Failed to broadcast name change:', error);
+    }
   }
 
   showColorAssignments() {
@@ -746,10 +806,7 @@ export class CLIInterface {
     
     this.displaySystemMessage('Current participants with their assigned colors:');
     for (const [username, colorFunc] of assignments.entries()) {
-      let displayName = username;
-      if (username === 'You' && this.customNames.has(this.currentChat.id)) {
-        displayName = this.customNames.get(this.currentChat.id);
-      }
+      const displayName = this.getDisplayName(this.currentChat.id, username);
       const coloredName = colorFunc(displayName);
       this.displaySystemMessage(`  ${coloredName}`);
     }
