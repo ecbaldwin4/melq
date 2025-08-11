@@ -388,18 +388,20 @@ export class CLIInterface {
 
     // Only refresh display if we're in the same chat in chat mode
     if (this.mode === CHAT_MODES.CHAT && this.currentChat && this.currentChat.id === messageData.chatId) {
-      // Preserve current input line
+      // Preserve current input line and cursor position
       const currentInput = this.rl.line;
       const currentCursor = this.rl.cursor;
       
       this.refreshChatDisplay();
       this.showInputArea();
       
-      // Restore the input line and cursor position
+      // Restore the input line and cursor position properly
       this.rl.line = currentInput;
       this.rl.cursor = currentCursor;
-      this.rl.prompt();
-      process.stdout.write(currentInput);
+      
+      // Clear the current line and rewrite with proper cursor position
+      process.stdout.write('\r\x1b[K'); // Clear current line
+      this.rl._refreshLine(); // Use readline's internal refresh method
     }
     // In directory mode, don't show any message notifications
   }
