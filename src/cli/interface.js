@@ -17,6 +17,7 @@ export class CLIInterface {
     this.messages = new Map(); // chatId -> messages[]
     this.chatColorAssignments = new Map(); // chatId -> { username -> colorName }
     this.customNames = new Map(); // chatId -> Map(nodeId -> custom name)
+    this.maxMessagesPerChat = 100; // Maximum messages to keep per chat
     this.chatHeight = Math.max(10, process.stdout.rows - 6); // Reserve space for input area
     this.isConnecting = false;
     this.connectionStatus = 'disconnected';
@@ -386,6 +387,9 @@ export class CLIInterface {
         timestamp: Date.now()
       });
 
+      // Enforce message limit for this chat
+      this.enforceMessageLimit(this.currentChat.id);
+
       // Ensure "You" gets a color assignment in this chat
       this.getColorForUser(this.currentChat.id, 'You');
 
@@ -426,6 +430,9 @@ export class CLIInterface {
       text: messageData.text,
       timestamp: messageData.timestamp
     });
+
+    // Enforce message limit for this chat
+    this.enforceMessageLimit(messageData.chatId);
 
     // Ensure sender gets a color assignment in this chat
     this.getColorForUser(messageData.chatId, fromNode);
@@ -784,6 +791,18 @@ export class CLIInterface {
     
     const chatNames = this.customNames.get(chatId);
     return chatNames.get(nodeId) || (nodeId === 'You' ? 'You' : nodeId);
+  }
+
+  enforceMessageLimit(chatId) {
+    if (!this.messages.has(chatId)) return;
+    
+    const messages = this.messages.get(chatId);
+    if (messages.length > this.maxMessagesPerChat) {
+      // Remove oldest messages to stay within limit
+      const messagesToRemove = messages.length - this.maxMessagesPerChat;
+      messages.splice(0, messagesToRemove);
+      console.log(`DEBUG: Trimmed ${messagesToRemove} old messages from chat ${chatId}, now ${messages.length} messages`);
+    }
   }
 
   broadcastNameChange(name) {
