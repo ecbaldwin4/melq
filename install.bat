@@ -31,20 +31,9 @@ echo - Install dependencies
 echo - Set up global 'melq' command
 echo.
 
-echo Note: For automated installation, you can pass any argument to skip prompts
-set "confirm=n"
-if "%~1"=="" (
-    set /p "confirm=Continue with installation? (y/n): "
-) else (
-    echo Running in automated mode - proceeding with installation...
-    set "confirm=y"
-)
-
-if /i not "%confirm%"=="y" (
-    echo Installation cancelled.
-    pause
-    exit /b 0
-)
+echo This installer will run automatically without prompts.
+echo Running zero-touch installation - proceeding automatically...
+set "confirm=y"
 
 echo.
 
@@ -85,27 +74,18 @@ if errorlevel 1 (
     )
     
     echo.
-    echo MANUAL INSTALLATION REQUIRED:
+    echo OPENING NODE.JS DOWNLOAD PAGE:
     echo Automated installation methods failed.
-    set /p "install_node=Would you like to download and install Node.js manually? (y/n): "
-    
-    if /i "%install_node%"=="y" (
-        echo.
-        echo Opening Node.js download page...
-        echo Please download the LTS version and run the installer.
-        echo After installation, restart this installer.
-        start https://nodejs.org/
-        echo.
-        pause
-        exit /b 1
-    ) else (
-        echo.
-        echo Please install Node.js first: https://nodejs.org/
-        echo Choose the LTS version and restart this installer after.
-        echo.
-        pause
-        exit /b 1
-    )
+    echo.
+    echo Opening Node.js download page automatically...
+    echo Please download the LTS version and run the installer.
+    echo After installation, restart this installer.
+    start https://nodejs.org/
+    echo.
+    echo The installer will exit so you can install Node.js.
+    echo Run this installer again after Node.js is installed.
+    pause
+    exit /b 1
 )
 
 REM Get Node.js version and check if it's new enough
@@ -123,20 +103,14 @@ if %MAJOR_VERSION% LSS 16 (
     echo [!] Node.js version %NODE_VERSION_FULL% is too old
     echo MELQ requires Node.js 16 or newer
     echo.
-    set /p "update_node=Would you like to download the latest Node.js? (y/n): "
-    
-    if /i "%update_node%"=="y" (
-        echo Opening Node.js download page...
-        start https://nodejs.org/
-        echo Please download and install the LTS version, then restart this installer.
-        echo.
-        pause
-        exit /b 1
-    ) else (
-        echo Please update Node.js: https://nodejs.org/
-        pause
-        exit /b 1
-    )
+    echo Opening Node.js download page automatically...
+    start https://nodejs.org/
+    echo Please download and install the LTS version, then restart this installer.
+    echo.
+    echo The installer will exit so you can upgrade Node.js.
+    echo Run this installer again after upgrading Node.js.
+    pause
+    exit /b 1
 )
 
 echo [OK] Node.js %NODE_VERSION_FULL% found
@@ -176,26 +150,21 @@ if errorlevel 1 (
     )
     
     echo.
-    echo MANUAL INSTALLATION REQUIRED:
+    echo OPENING GIT DOWNLOAD PAGE:
     echo Automated installation methods failed.
-    set /p "install_git=Would you like to download and install Git manually? (y/n): "
-    
-    if /i "%install_git%"=="y" (
-        echo 🌐 Opening Git download page...
-        echo Please download and install Git, then restart this installer.
-        start https://git-scm.com/download/win
-        echo.
-        pause
-        exit /b 1
-    ) else (
-        echo.
-        echo Alternative: You can also download MELQ manually from:
-        echo https://github.com/ecbaldwin4/melq/archive/refs/heads/master.zip
-        echo Extract it and run npm start from inside the folder.
-        echo.
-        pause
-        exit /b 1
-    )
+    echo.
+    echo 🌐 Opening Git download page automatically...
+    echo Please download and install Git, then restart this installer.
+    start https://git-scm.com/download/win
+    echo.
+    echo Alternative: You can also download MELQ manually from:
+    echo https://github.com/ecbaldwin4/melq/archive/refs/heads/master.zip
+    echo Extract it and run npm start from inside the folder.
+    echo.
+    echo The installer will exit so you can install Git.
+    echo Run this installer again after installing Git.
+    pause
+    exit /b 1
 )
 
 echo [OK] Git found
@@ -208,16 +177,9 @@ echo 📁 Installing to: %INSTALL_DIR%
 if exist "%INSTALL_DIR%" (
     echo.
     echo [!] MELQ directory already exists at %INSTALL_DIR%
-    set /p "overwrite=Remove existing installation and reinstall? (y/n): "
-    
-    if /i "%overwrite%"=="y" (
-        echo Removing existing installation...
-        rmdir /s /q "%INSTALL_DIR%"
-    ) else (
-        echo Installation cancelled.
-        pause
-        exit /b 0
-    )
+    echo Automatically removing existing installation for clean reinstall...
+    rmdir /s /q "%INSTALL_DIR%"
+    echo ✅ Removed existing installation
 )
 
 echo.
@@ -286,15 +248,11 @@ if not errorlevel 1 (
 
 echo ⚠️  Installation completed, but 'melq' command not found
 echo.
-echo 🔧 Would you like me to try fixing the PATH automatically?
+echo 🔧 Attempting to fix PATH automatically...
 echo This will add the npm global directory to your system PATH.
 echo.
-if "%~1"=="" (
-    set /p "fix_path=Add npm global directory to PATH? (y/n): "
-) else (
-    echo Running in automated mode - will attempt PATH fix...
-    set "fix_path=y"
-)
+echo Proceeding with automatic PATH fix...
+set "fix_path=y"
 
 if /i "%fix_path%"=="y" (
     echo.
@@ -358,15 +316,12 @@ echo.
 echo 📁 Installed in: %INSTALL_DIR%
 echo 📖 For help visit: https://github.com/ecbaldwin4/melq
 echo.
-set /p "run_now=Would you like to start MELQ now? (y/n): "
-
-if /i "%run_now%"=="y" (
-    echo.
-    echo Starting MELQ...
-    melq 2>nul || (
-        echo Running locally...
-        call npm start
-    )
+echo Starting MELQ automatically...
+echo.
+echo Starting MELQ...
+melq 2>nul || (
+    echo Running locally...
+    call npm start
 )
 
 echo.
