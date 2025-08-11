@@ -36,6 +36,7 @@ export class UnifiedNode {
     this.chatHistory = new Map(); // chatId -> messages[]
     this.hostPort = null;
     this.sessionPassword = null; // Password for protected sessions
+    this.authenticatedNodes = new Set(); // nodeIds that have been authenticated
     
     // Client mode properties
     this.coordinatorWs = null;
@@ -194,6 +195,7 @@ export class UnifiedNode {
       if (nodeId) {
         this.connectedNodes.delete(nodeId);
         this.peerKeys.delete(nodeId);
+        this.authenticatedNodes.delete(nodeId); // Clean up authentication state
         this.safeLog(`Node ${nodeId} disconnected`);
         
         // Notify CLI interface to update UI
@@ -226,8 +228,16 @@ export class UnifiedNode {
         // Client is attempting password authentication
         if (ws) {
           if (!this.sessionPassword) {
+            // No password required, mark as authenticated
+            if (message.nodeId) {
+              this.authenticatedNodes.add(message.nodeId);
+            }
             ws.send(JSON.stringify({ type: 'password_accepted' }));
           } else if (message.password === this.sessionPassword) {
+            // Correct password, mark as authenticated
+            if (message.nodeId) {
+              this.authenticatedNodes.add(message.nodeId);
+            }
             ws.send(JSON.stringify({ type: 'password_accepted' }));
           } else {
             ws.send(JSON.stringify({ 
@@ -253,11 +263,28 @@ export class UnifiedNode {
             timestamp: Date.now(),
             authenticated: message.authenticated || false
           });
+          
+          // Auto-authenticate the host's own client connection
+          if (message.authenticated) {
+            this.authenticatedNodes.add(message.nodeId);
+          }
+
           ws.send(JSON.stringify({ type: 'registered', nodeId: message.nodeId }));
         }
         break;
 
       case 'discover_nodes':
+        // Check authentication for password-protected sessions
+        if (!this.isNodeAuthenticated(message.nodeId)) {
+          if (ws) {
+            ws.send(JSON.stringify({ 
+              type: 'access_denied', 
+              message: 'Authentication required' 
+            }));
+          }
+          return;
+        }
+
         const nodeList = Array.from(this.connectedNodes.entries())
           .filter(([id]) => id !== message.nodeId)
           .map(([id, node]) => ({
@@ -275,6 +302,17 @@ export class UnifiedNode {
         break;
 
       case 'get_chats':
+        // Check authentication for password-protected sessions
+        if (!this.isNodeAuthenticated(message.nodeId)) {
+          if (ws) {
+            ws.send(JSON.stringify({ 
+              type: 'access_denied', 
+              message: 'Authentication required' 
+            }));
+          }
+          return;
+        }
+
         const availableChats = Array.from(this.chatRooms.entries()).map(([chatId, chat]) => ({
           chatId,
           chatName: chat.name,
@@ -291,6 +329,17 @@ export class UnifiedNode {
         break;
 
       case 'create_chat':
+        // Check authentication for password-protected sessions
+        if (!this.isNodeAuthenticated(message.nodeId)) {
+          if (ws) {
+            ws.send(JSON.stringify({ 
+              type: 'access_denied', 
+              message: 'Authentication required' 
+            }));
+          }
+          return;
+        }
+
         const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         this.chatRooms.set(chatId, {
           creator: message.nodeId,
@@ -322,6 +371,17 @@ export class UnifiedNode {
         break;
 
       case 'join_chat':
+        // Check authentication for password-protected sessions
+        if (!this.isNodeAuthenticated(message.nodeId)) {
+          if (ws) {
+            ws.send(JSON.stringify({ 
+              type: 'access_denied', 
+              message: 'Authentication required' 
+            }));
+          }
+          return;
+        }
+
         const chat = this.chatRooms.get(message.chatId);
         if (chat && !chat.participants.includes(message.nodeId)) {
           chat.participants.push(message.nodeId);
@@ -342,6 +402,17 @@ export class UnifiedNode {
         break;
 
       case 'send_chat_message':
+        // Check authentication for password-protected sessions
+        if (!this.isNodeAuthenticated(message.nodeId)) {
+          if (ws) {
+            ws.send(JSON.stringify({ 
+              type: 'access_denied', 
+              message: 'Authentication required' 
+            }));
+          }
+          return;
+        }
+
         this.handleChatMessage(message);
         break;
 
@@ -515,9 +586,10 @@ export class UnifiedNode {
   }
 
   // CLIENT MODE METHODS
-  async joinNetwork(connectionCode) {
+  async joinNetwork(connectionCode, isHostAutoClient = false) {
     await this.initialize();
     this.mode = NODE_MODES.CLIENT;
+    this.isHostAutoClient = isHostAutoClient;
     
     let coordinatorUrl;
     try {
@@ -546,9 +618,17 @@ export class UnifiedNode {
         this.startHeartbeat();
         
         try {
-          // First check if password is required
-          await this.checkPasswordRequirement();
-          this.safeLog('✅ Authentication completed', chalk.green);
+          // Skip password check for host auto-client
+          if (!this.isHostAutoClient) {
+            await this.checkPasswordRequirement();
+            this.safeLog('✅ Authentication completed', chalk.green);
+          } else {
+            this.safeLog('✅ Host auto-client connected', chalk.gray);
+          }
+          
+          // Wait for registration to complete before attempting discovery
+          await this.register();
+          this.safeLog('✅ Registration completed', chalk.green);
           
           // Now immediately discover peers and get chats
           await this.discoverNodes();
@@ -706,6 +786,11 @@ export class UnifiedNode {
         this.handleChatHistory(message);
         break;
 
+      case 'access_denied':
+        // Server denied access due to lack of authentication
+        this.safeLog(`❌ Access denied: ${message.message}`, chalk.red);
+        break;
+
       case 'pong':
         // Heartbeat response - no action needed
         break;
@@ -764,6 +849,7 @@ export class UnifiedNode {
   submitPassword(password) {
     this.send({
       type: 'password_attempt',
+      nodeId: this.nodeId,
       password: password
     });
   }
@@ -790,7 +876,7 @@ export class UnifiedNode {
         nodeId: this.nodeId,
         publicKey: this.keyPair.publicKey,
         address: `direct://${this.nodeId}`,
-        authenticated: authenticated
+        authenticated: authenticated || this.isHostAutoClient
       });
     });
   }
@@ -804,6 +890,14 @@ export class UnifiedNode {
       this.passwordResolver = null;
       throw new Error('Password authentication failed');
     }
+  }
+
+  // Helper method to check if node is authenticated for password-protected sessions
+  isNodeAuthenticated(nodeId) {
+    // If no password is set, everyone is authenticated
+    if (!this.sessionPassword) return true;
+    // Check if node has been authenticated
+    return this.authenticatedNodes.has(nodeId);
   }
 
   register() {

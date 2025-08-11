@@ -613,8 +613,8 @@ async function attemptAutoClientConnection(networkInfo) {
     // Give the host a moment to fully initialize and finish all setup output
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Connect as client
-    await clientNode.joinNetwork(connectionCode);
+    // Connect as client (pass host auto-client flag)
+    await clientNode.joinNetwork(connectionCode, true);
     console.log(chalk.green('✅ Successfully auto-connected as client!'));
     
     // Give additional time for any remaining output to settle
@@ -633,7 +633,8 @@ async function attemptAutoClientConnection(networkInfo) {
         'manual'
       ) : null,
       isHost: true,
-      hasInternet: networkInfo.hasInternet
+      hasInternet: networkInfo.hasInternet,
+      isHostAutoClient: true  // Flag to bypass password auth
     };
     
     // Start client chat interface
