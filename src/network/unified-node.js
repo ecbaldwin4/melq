@@ -72,6 +72,21 @@ export class UnifiedNode {
     await this.initialize();
     this.mode = NODE_MODES.HOST;
     
+    // Find available port if default port is in use (multi-node support)
+    const requestedPort = port || 42045;
+    const availablePort = await this.findAvailablePort(requestedPort, requestedPort + 50);
+    
+    if (!availablePort) {
+      throw new Error(`No available ports found in range ${requestedPort}-${requestedPort + 50}. Please try a different port range.`);
+    }
+    
+    if (availablePort !== requestedPort) {
+      console.log(chalk.yellow(`🔄 Port ${requestedPort} is busy, using port ${availablePort} instead`));
+    }
+    
+    // Use the found available port
+    port = availablePort;
+    
     // Create Fastify server
     this.server = Fastify({ logger: false });
     
@@ -515,9 +530,7 @@ export class UnifiedNode {
       });
 
       this.coordinatorWs.on('close', (code, reason) => {
-        console.log(`Disconnected from network (code: ${code})`);
-        this.stopHeartbeat();
-        if (this.cliInterface) this.cliInterface.rl.prompt();
+        this.handleHostDisconnection(code, reason);
       });
 
       this.coordinatorWs.on('error', (error) => {
@@ -1087,5 +1100,126 @@ export class UnifiedNode {
         this.cliInterface.showInputArea();
       }
     }
+  }
+
+  // ===============================
+  // HOST DISCONNECTION HANDLING
+  // ===============================
+
+  handleHostDisconnection(code, reason) {
+    this.stopHeartbeat();
+    
+    // Determine disconnection type
+    const isHostShutdown = code === 1001 || code === 1000 || reason === 'host_shutdown';
+    const isConnectionLost = code === 1006 || code === 1011;
+    
+    if (isHostShutdown) {
+      // Host intentionally shut down - clean shutdown
+      this.performClientCleanShutdown();
+    } else if (isConnectionLost) {
+      // Connection lost - attempt reconnection or show error
+      this.handleConnectionLoss(code, reason);
+    } else {
+      // Other disconnection - log and prompt
+      this.safeLog(`Disconnected from network (code: ${code})`, chalk.yellow);
+      if (this.cliInterface) this.cliInterface.rl.prompt();
+    }
+  }
+
+  performClientCleanShutdown() {
+    try {
+      // Notify CLI interface of host shutdown
+      if (this.cliInterface) {
+        this.cliInterface.handleHostShutdown();
+      }
+      
+      // Clear all chat messages from memory
+      if (this.cliInterface && this.cliInterface.messages) {
+        this.cliInterface.messages.clear();
+      }
+      
+      // Clear peer connections
+      this.peerKeys.clear();
+      this.chats.clear();
+      
+      this.safeLog('Host has shut down. All chat data cleared.', chalk.red);
+      this.safeLog('Returning to main menu...', chalk.yellow);
+      
+    } catch (error) {
+      console.error('Error during client shutdown:', error);
+    }
+  }
+
+  handleConnectionLoss(code, reason) {
+    if (this.cliInterface) {
+      this.cliInterface.handleConnectionLoss(code, reason);
+    } else {
+      this.safeLog(`Connection lost (code: ${code}). Reason: ${reason}`, chalk.red);
+    }
+  }
+
+  // ===============================
+  // PORT MANAGEMENT FOR MULTI-NODE
+  // ===============================
+
+  async findAvailablePort(startPort, endPort) {
+    const net = await import('net');
+    
+    for (let port = startPort; port <= endPort; port++) {
+      if (await this.isPortAvailable(port)) {
+        return port;
+      }
+    }
+    return null;
+  }
+
+  async isPortAvailable(port) {
+    const net = await import('net');
+    
+    return new Promise((resolve) => {
+      const server = net.createServer();
+      
+      server.listen(port, '0.0.0.0', () => {
+        server.once('close', () => {
+          resolve(true);
+        });
+        server.close();
+      });
+      
+      server.on('error', () => {
+        resolve(false);
+      });
+    });
+  }
+
+  // Check if any MELQ nodes are already running
+  async checkExistingNodes() {
+    const existingNodes = [];
+    
+    // Check common MELQ ports
+    for (let port = 42045; port <= 42095; port++) {
+      try {
+        // Try to connect to health endpoint to detect MELQ nodes
+        const response = await fetch(`http://localhost:${port}/health`, { 
+          timeout: 100 
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.mode === 'host' && data.nodeId) {
+            existingNodes.push({
+              port,
+              nodeId: data.nodeId,
+              nodes: data.nodes,
+              chats: data.chats
+            });
+          }
+        }
+      } catch {
+        // Port not in use or not a MELQ node - continue checking
+      }
+    }
+    
+    return existingNodes;
   }
 }

@@ -195,6 +195,18 @@ async function startHostMode(node, port = 0) {
 
   rl.close();
   
+  // Check for existing MELQ nodes
+  console.log(chalk.yellow('\n🔍 Checking for existing MELQ nodes...'));
+  const existingNodes = await node.checkExistingNodes();
+  
+  if (existingNodes.length > 0) {
+    console.log(chalk.blue(`\n📡 Found ${existingNodes.length} existing MELQ node(s):`));
+    existingNodes.forEach((nodeInfo, index) => {
+      console.log(chalk.cyan(`  ${index + 1}. Node ${nodeInfo.nodeId.slice(-8)} on port ${nodeInfo.port} (${nodeInfo.nodes} peers, ${nodeInfo.chats} chats)`));
+    });
+    console.log(chalk.dim.gray('\n💡 Your new node will use a different port automatically.'));
+  }
+  
   console.log(chalk.yellow('\n🗠️ Starting network...'));
   const networkInfo = await node.startAsHost(port, options);
   
@@ -219,6 +231,18 @@ async function startHostMode(node, port = 0) {
 
 async function startHostModeWithOptions(node, port = 0, options = {}) {
   console.log(chalk.yellow('\n🖥️ Starting network with specified options...'));
+  
+  // Check for existing MELQ nodes
+  console.log(chalk.yellow('\n🔍 Checking for existing MELQ nodes...'));
+  const existingNodes = await node.checkExistingNodes();
+  
+  if (existingNodes.length > 0) {
+    console.log(chalk.blue(`\n📡 Found ${existingNodes.length} existing MELQ node(s):`));
+    existingNodes.forEach((nodeInfo, index) => {
+      console.log(chalk.cyan(`  ${index + 1}. Node ${nodeInfo.nodeId.slice(-8)} on port ${nodeInfo.port} (${nodeInfo.nodes} peers, ${nodeInfo.chats} chats)`));
+    });
+    console.log(chalk.dim.gray('\n💡 Your new node will use a different port automatically.'));
+  }
   
   const networkInfo = await node.startAsHost(port, options);
   

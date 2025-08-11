@@ -4,7 +4,26 @@ import logger from '../utils/async-logger.js';
 
 const CHAT_MODES = {
   DIRECTORY: 'directory',
-  CHAT: 'chat'
+  CHAT: 'chat',
+  ERROR: 'error',
+  LOADING: 'loading'
+};
+
+const CONNECTION_STATUS = {
+  CONNECTED: 'connected',
+  CONNECTING: 'connecting', 
+  DISCONNECTED: 'disconnected',
+  RECONNECTING: 'reconnecting',
+  ERROR: 'error'
+};
+
+const UI_THEMES = {
+  SUCCESS: { icon: '✅', color: chalk.green },
+  ERROR: { icon: '❌', color: chalk.red },
+  WARNING: { icon: '⚠️', color: chalk.yellow },
+  INFO: { icon: 'ℹ️', color: chalk.blue },
+  LOADING: { icon: '⏳', color: chalk.cyan },
+  NETWORK: { icon: '🌐', color: chalk.magenta }
 };
 
 export class CLIInterface {
@@ -19,51 +38,345 @@ export class CLIInterface {
     this.customNames = new Map(); // chatId -> Map(nodeId -> custom name)
     this.maxMessagesPerChat = 100; // Maximum messages to keep per chat
     this.chatHeight = Math.max(10, process.stdout.rows - 6); // Reserve space for input area
+    
+    // Enhanced connection management
+    this.connectionStatus = CONNECTION_STATUS.DISCONNECTED;
+    this.connectionAttempts = 0;
+    this.maxRetries = 3;
+    this.lastError = null;
+    this.isShuttingDown = false;
+    
+    // UI state management  
     this.isConnecting = false;
-    this.connectionStatus = 'disconnected';
     this.lastActivity = Date.now();
     this.statusInterval = null;
     this.spinnerFrame = 0;
     this.spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    this.connectionInfo = null; // Store connection details for display
-    this.refreshTimeout = null; // Debounce rapid refreshes
+    this.connectionInfo = null;
+    this.refreshTimeout = null;
+    
+    // Error handling and recovery
+    this.errorHistory = [];
+    this.maxErrorHistory = 10;
+    this.lastSuccessfulCommand = null;
+    
+    // Professional UI enhancements
+    this.terminalWidth = process.stdout.columns || 80;
+    this.notifications = [];
+    this.maxNotifications = 5;
+    // Enhanced readline with better error handling
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
-      prompt: this.getPrompt()
+      prompt: this.getPrompt(),
+      completer: this.completer.bind(this),
+      history: []
     });
+    
+    // Set up comprehensive error handling
+    this.setupErrorHandling();
 
     this.setupEventHandlers();
     this.setupNodeHandlers();
     this.setupScreenResize();
   }
 
+  // ===============================
+  // ERROR HANDLING & RECOVERY
+  // ===============================
+  
+  setupErrorHandling() {
+    // Handle uncaught exceptions gracefully
+    process.on('uncaughtException', (error) => {
+      this.handleCriticalError('System Error', error);
+    });
+    
+    process.on('unhandledRejection', (reason, promise) => {
+      this.handleCriticalError('Promise Rejection', new Error(reason));
+    });
+    
+    // Handle readline errors
+    this.rl.on('error', (error) => {
+      this.logError('Input Error', error);
+      this.showError('Input error occurred. Please try again.');
+    });
+  }
+  
+  handleCriticalError(type, error) {
+    try {
+      console.clear();
+      this.showCriticalErrorScreen(type, error);
+      
+      // Attempt graceful shutdown
+      setTimeout(() => {
+        this.performEmergencyShutdown();
+      }, 3000);
+    } catch (shutdownError) {
+      // Last resort
+      console.error('CRITICAL ERROR:', error.message);
+      process.exit(1);
+    }
+  }
+  
+  logError(type, error) {
+    const errorEntry = {
+      type,
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      context: {
+        mode: this.mode,
+        currentChat: this.currentChat?.name,
+        connectionStatus: this.connectionStatus
+      }
+    };
+    
+    this.errorHistory.push(errorEntry);
+    if (this.errorHistory.length > this.maxErrorHistory) {
+      this.errorHistory.shift();
+    }
+    
+    this.lastError = errorEntry;
+  }
+  
+  showCriticalErrorScreen(type, error) {
+    const width = this.terminalWidth;
+    const border = '═'.repeat(width - 2);
+    
+    console.log(chalk.red('╔' + border + '╗'));
+    console.log(chalk.red('║') + chalk.bold.white(' '.repeat(Math.floor((width - 16) / 2)) + 'CRITICAL ERROR' + ' '.repeat(Math.ceil((width - 16) / 2))) + chalk.red('║'));
+    console.log(chalk.red('╠' + border + '╣'));
+    console.log(chalk.red('║') + ' '.repeat(width - 2) + chalk.red('║'));
+    console.log(chalk.red('║') + chalk.yellow(` Type: ${type}`.padEnd(width - 3)) + chalk.red('║'));
+    console.log(chalk.red('║') + chalk.white(` Error: ${error.message}`.padEnd(width - 3)) + chalk.red('║'));
+    console.log(chalk.red('║') + ' '.repeat(width - 2) + chalk.red('║'));
+    console.log(chalk.red('║') + chalk.dim(` Attempting graceful shutdown...`.padEnd(width - 3)) + chalk.red('║'));
+    console.log(chalk.red('║') + chalk.dim(` Please wait 3 seconds...`.padEnd(width - 3)) + chalk.red('║'));
+    console.log(chalk.red('║') + ' '.repeat(width - 2) + chalk.red('║'));
+    console.log(chalk.red('╚' + border + '╝'));
+  }
+  
+  performEmergencyShutdown() {
+    try {
+      // Exit alternative screen if in chat
+      if (this.mode === CHAT_MODES.CHAT) {
+        process.stdout.write('\x1b[?1049l');
+      }
+      
+      // Disconnect node
+      if (this.node) {
+        this.node.disconnect();
+      }
+      
+      console.log(chalk.red('\n🚫 Emergency shutdown completed.'));
+      process.exit(1);
+    } catch {
+      process.exit(1);
+    }
+  }
+  
+  // ===============================
+  // INPUT VALIDATION & COMPLETION
+  // ===============================
+  
+  completer(line) {
+    const commands = {
+      [CHAT_MODES.DIRECTORY]: ['ls', 'cd', 'mkdir', 'discover', 'nodes', 'help', 'clear', 'connect', 'status'],
+      [CHAT_MODES.CHAT]: ['/exit', '/help', '/clear', '/colors', '/name', '/status', '/reconnect']
+    };
+    
+    const availableCommands = commands[this.mode] || [];
+    const hits = availableCommands.filter(cmd => cmd.startsWith(line));
+    return [hits.length ? hits : availableCommands, line];
+  }
+  
+  validateInput(input, mode = this.mode) {
+    try {
+      if (!input || typeof input !== 'string') {
+        return { valid: false, error: 'Invalid input type' };
+      }
+      
+      const trimmed = input.trim();
+      if (trimmed.length === 0) {
+        return { valid: true, input: trimmed };
+      }
+      
+      // Check for dangerous patterns
+      const dangerousPatterns = [
+        /[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/, // Control characters
+        /\x1b\[[0-9;]*[mGKH]/, // ANSI escape sequences
+        /__[A-Z_]+__:/, // System message patterns
+      ];
+      
+      for (const pattern of dangerousPatterns) {
+        if (pattern.test(trimmed)) {
+          return { valid: false, error: 'Input contains invalid characters' };
+        }
+      }
+      
+      // Mode-specific validation
+      if (mode === CHAT_MODES.CHAT) {
+        if (trimmed.length > 1000) {
+          return { valid: false, error: 'Message too long (max 1000 characters)' };
+        }
+        
+        if (trimmed.startsWith('/')) {
+          const validChatCommands = ['/exit', '/help', '/clear', '/colors', '/name', '/status', '/reconnect'];
+          const command = trimmed.split(' ')[0];
+          if (!validChatCommands.includes(command)) {
+            return { valid: false, error: `Unknown command: ${command}` };
+          }
+        }
+      }
+      
+      return { valid: true, input: trimmed };
+    } catch (error) {
+      this.logError('Input Validation', error);
+      return { valid: false, error: 'Input validation failed' };
+    }
+  }
+  
+  showError(message, details = null) {
+    const theme = UI_THEMES.ERROR;
+    const errorMessage = `${theme.icon} ${message}`;
+    
+    if (this.mode === CHAT_MODES.CHAT) {
+      this.displaySystemMessage(theme.color(errorMessage), false);
+      if (details) {
+        this.displaySystemMessage(chalk.dim(`   Details: ${details}`), false);
+      }
+    } else {
+      logger.log(theme.color(errorMessage));
+      if (details) {
+        logger.log(chalk.dim(`   Details: ${details}`));
+      }
+    }
+  }
+  
+  showSuccess(message) {
+    const theme = UI_THEMES.SUCCESS;
+    const successMessage = `${theme.icon} ${message}`;
+    
+    if (this.mode === CHAT_MODES.CHAT) {
+      this.displaySystemMessage(theme.color(successMessage));
+    } else {
+      logger.log(theme.color(successMessage));
+    }
+  }
+  
+  showWarning(message) {
+    const theme = UI_THEMES.WARNING;
+    const warningMessage = `${theme.icon} ${message}`;
+    
+    if (this.mode === CHAT_MODES.CHAT) {
+      this.displaySystemMessage(theme.color(warningMessage));
+    } else {
+      logger.log(theme.color(warningMessage));
+    }
+  }
+
   setupEventHandlers() {
     this.rl.on('line', (input) => {
-      if (this.mode === CHAT_MODES.CHAT) {
-        // Clear the input line before processing
-        process.stdout.write('\r\x1b[K');
+      try {
+        if (this.mode === CHAT_MODES.CHAT) {
+          // Clear the input line before processing
+          process.stdout.write('\r\x1b[K');
+        }
+        
+        // Validate input before processing
+        const validation = this.validateInput(input);
+        if (!validation.valid) {
+          // If in chat mode with no peers, silently ignore invalid input to prevent spam
+          if (this.mode === CHAT_MODES.CHAT && this.node.peerKeys && this.node.peerKeys.size === 0) {
+            this.rl.prompt();
+            return;
+          }
+          this.showError(validation.error);
+          this.rl.prompt();
+          return;
+        }
+        
+        this.lastSuccessfulCommand = validation.input;
+        this.handleCommand(validation.input);
+      } catch (error) {
+        this.logError('Command Processing', error);
+        this.showError('An error occurred processing your command');
+        this.rl.prompt();
       }
-      this.handleCommand(input.trim());
     });
 
     this.rl.on('close', () => {
-      // Exit alternative screen buffer if we're in a chat
-      if (this.mode === CHAT_MODES.CHAT) {
-        process.stdout.write('\x1b[?1049l');
-      }
-      console.log('\nGoodbye!');
-      this.node.disconnect();
-      process.exit(0);
+      this.performGracefulShutdown();
     });
 
     process.on('SIGINT', () => {
+      this.performGracefulShutdown();
+    });
+    
+    // Handle terminal resize
+    process.stdout.on('resize', () => {
+      this.terminalWidth = process.stdout.columns || 80;
+      this.chatHeight = Math.max(10, process.stdout.rows - 6);
+      if (this.mode === CHAT_MODES.CHAT && this.currentChat) {
+        this.debouncedRefresh();
+      }
+    });
+  }
+  
+  performGracefulShutdown() {
+    try {
+      this.isShuttingDown = true;
+      
       // Exit alternative screen buffer if we're in a chat
       if (this.mode === CHAT_MODES.CHAT) {
         process.stdout.write('\x1b[?1049l');
       }
-      this.rl.close();
-    });
+      
+      // Clear any intervals
+      if (this.statusInterval) {
+        clearInterval(this.statusInterval);
+      }
+      if (this.refreshTimeout) {
+        clearTimeout(this.refreshTimeout);
+      }
+      
+      // Show professional goodbye message
+      console.clear();
+      const width = Math.min(process.stdout.columns || 80, 100);
+      const border = '═'.repeat(Math.max(0, width - 2));
+      
+      // Title line
+      const title = 'GOODBYE!';
+      const titlePadding = Math.max(0, Math.floor((width - title.length - 2) / 2));
+      const titleLeft = ' '.repeat(titlePadding);
+      const titleRight = ' '.repeat(Math.max(0, width - title.length - titlePadding - 2));
+      
+      // Message lines with proper padding
+      const msg1 = '  Thank you for using MELQ - Quantum-Secure Chat';
+      const msg2 = '  Your connection has been securely closed.';
+      
+      // Ensure messages fit and pad properly
+      const msg1Padded = msg1.length < width - 2 ? msg1 + ' '.repeat(width - msg1.length - 2) : msg1.substring(0, width - 2);
+      const msg2Padded = msg2.length < width - 2 ? msg2 + ' '.repeat(width - msg2.length - 2) : msg2.substring(0, width - 2);
+      
+      console.log(chalk.cyan('╔' + border + '╗'));
+      console.log(chalk.cyan('║') + titleLeft + chalk.bold.white(title) + titleRight + chalk.cyan('║'));
+      console.log(chalk.cyan('║') + ' '.repeat(Math.max(0, width - 2)) + chalk.cyan('║'));
+      console.log(chalk.cyan('║') + chalk.dim(msg1Padded) + chalk.cyan('║'));
+      console.log(chalk.cyan('║') + chalk.dim(msg2Padded) + chalk.cyan('║'));
+      console.log(chalk.cyan('║') + ' '.repeat(Math.max(0, width - 2)) + chalk.cyan('║'));
+      console.log(chalk.cyan('╚' + border + '╝'));
+      
+      // Disconnect node gracefully
+      if (this.node && !this.isShuttingDown) {
+        this.node.disconnect();
+      }
+      
+      setTimeout(() => process.exit(0), 500);
+    } catch (error) {
+      console.log(chalk.yellow('\n👋 Goodbye!'));
+      process.exit(0);
+    }
   }
 
   setupScreenResize() {
@@ -202,7 +515,13 @@ export class CLIInterface {
     }
     
     // Send the message
-    this.sendMessage(trimmedInput);
+    const messageSent = this.sendMessage(trimmedInput);
+    
+    // If no message was sent (no peers), refresh display to keep chat clean
+    if (!messageSent && this.node.peerKeys && this.node.peerKeys.size === 0) {
+      this.refreshChatDisplay();
+    }
+    
     this.rl.prompt();
   }
 
@@ -238,10 +557,6 @@ export class CLIInterface {
       
       case 'help':
         this.showHelp();
-        break;
-      
-      case 'pwd':
-        console.log(this.currentPath);
         break;
       
       case 'clear':
@@ -369,29 +684,24 @@ export class CLIInterface {
     if (!this.currentChat) {
       this.displaySystemMessage('❌ You must be in a chat to send messages.');
       this.displaySystemMessage('💡 Use "cd <chat_name>" to enter a chat.');
-      return;
+      return false;
     }
 
     if (!message || message.trim().length === 0) {
-      return;
+      return false;
     }
 
     // Check message length
     if (message.length > 500) {
       this.displaySystemMessage('❌ Message too long (max 500 characters)');
-      return;
+      return false;
     }
 
     const targets = Array.from(this.node.peerKeys.keys());
     if (targets.length === 0) {
-      this.displaySystemMessage('⚠️  No peers connected. Attempting to discover...');
-      this.node.discoverNodes();
-      setTimeout(() => {
-        if (this.node.peerKeys.size === 0) {
-          this.displaySystemMessage('❌ Still no peers found. Use "/discover" or wait for others to connect.');
-        }
-      }, 3000);
-      return;
+      // Don't add to chat history - just show temporary notification
+      // The message was not sent, so don't store it anywhere
+      return false;
     }
 
     try {
@@ -419,10 +729,12 @@ export class CLIInterface {
 
       // Refresh the chat display to show the new message
       this.refreshChatDisplay();
-      this.showInputArea();
+      
+      return true; // Message was successfully sent
       
     } catch (error) {
       this.displaySystemMessage(`❌ Failed to send message: ${error.message}`);
+      return false;
     }
   }
 
@@ -463,7 +775,7 @@ export class CLIInterface {
       
       // Small delay to let display refresh complete before restoring input
       setTimeout(() => {
-        this.showInputArea();
+        
         
         // Restore the input line and cursor position properly
         this.rl.line = currentInput;
@@ -524,7 +836,7 @@ export class CLIInterface {
     process.stdout.write('\x1b[?1049h');
     
     this.refreshChatDisplay();
-    this.showInputArea();
+    
     this.updatePrompt();
   }
 
@@ -541,72 +853,205 @@ export class CLIInterface {
   refreshChatDisplay() {
     if (!this.currentChat) return;
     
-    // More robust terminal clearing
-    process.stdout.write('\x1b[2J\x1b[H'); // Clear entire screen and move cursor to top-left
+    // Get actual terminal dimensions
+    const terminalWidth = process.stdout.columns || 80;
+    const terminalHeight = process.stdout.rows || 30;
     
-    // Responsive header
-    const terminalWidth = Math.min(process.stdout.columns || 80, 80);
+    // Clear screen completely and ensure cursor is at top-left
+    process.stdout.write('\x1b[2J');  // Clear entire screen
+    process.stdout.write('\x1b[1;1H'); // Move cursor to row 1, column 1
+    
+    // Add a small buffer line to ensure header is visible at top
+    console.log(''); // Empty line to push content down slightly
+    
+    // Create responsive chat header with commands
+    this.drawChatHeader(terminalWidth);
+    
+    // Calculate available space for messages (header + footer)
+    const headerHeight = 6; // Header has 6 lines: buffer line + ╔═══╗, ║title║, ║empty║, ║commands║, ╚═══╝
+    const footerHeight = 1; // Input line
+    const availableHeight = Math.max(5, terminalHeight - headerHeight - footerHeight);
+    
+    // Get messages to display (limit by actual rendered lines, not message count)
+    const chatMessages = this.messages.get(this.currentChat.id) || [];
+    const displayMessages = this.selectMessagesToFit(chatMessages, terminalWidth, availableHeight);
+    
+    // Display messages with proper formatting
+    const renderedLines = this.drawChatMessages(displayMessages, terminalWidth, availableHeight);
+    
+    // Fill remaining space to prevent scrolling
+    const remainingLines = availableHeight - renderedLines;
+    if (remainingLines > 0) {
+      console.log('\n'.repeat(remainingLines));
+    }
+  }
+  
+  drawChatHeader(terminalWidth) {
     const chatName = this.currentChat.name.toUpperCase();
     const peerCount = this.node.peerKeys ? this.node.peerKeys.size : 0;
     const statusIcon = peerCount > 0 ? '🟢' : '🔴';
     const headerTitle = `${statusIcon} ${chatName} (${peerCount} peers)`;
+    const commands = '/exit /help /clear /colors /name';
+    const commandsHint = `Commands: ${commands}`;
     
-    // Calculate padding for centered header
-    const contentWidth = terminalWidth - 4;
-    const padding = Math.max(0, Math.floor((contentWidth - headerTitle.length) / 2));
-    const leftPadding = ' '.repeat(padding);
-    const rightPadding = ' '.repeat(contentWidth - headerTitle.length - padding);
+    // Use the same pattern as showWelcomeBanner for consistent rendering
+    const banner = '═'.repeat(terminalWidth - 2);
+    const titlePadding = Math.max(0, Math.floor((terminalWidth - headerTitle.length - 2) / 2));
+    const cmdPadding = Math.max(0, Math.floor((terminalWidth - commandsHint.length - 2) / 2));
+
+    console.log(chalk.cyan('╔' + banner + '╗'));
+    console.log(chalk.cyan('║') + ' '.repeat(titlePadding) + chalk.bold.white(headerTitle) + ' '.repeat(terminalWidth - headerTitle.length - titlePadding - 2) + chalk.cyan('║'));
+    console.log(chalk.cyan('║') + ' '.repeat(terminalWidth - 2) + chalk.cyan('║'));
+    console.log(chalk.cyan('║') + ' '.repeat(cmdPadding) + chalk.dim.gray(commandsHint) + ' '.repeat(terminalWidth - commandsHint.length - cmdPadding - 2) + chalk.cyan('║'));
+    console.log(chalk.cyan('╚' + banner + '╝'));
+  }
+
+  // Select messages that will fit in the available height without scrolling
+  selectMessagesToFit(messages, terminalWidth, availableHeight) {
+    if (messages.length === 0) return [];
     
-    // Beautiful gradient header
-    console.log(chalk.cyan('╭' + '─'.repeat(terminalWidth - 2) + '╮'));
-    console.log(chalk.cyan('│') + leftPadding + chalk.bold.white(headerTitle) + rightPadding + chalk.cyan('│'));
-    console.log(chalk.cyan('╰' + '─'.repeat(terminalWidth - 2) + '╯'));
+    const timeStampWidth = 8; // [HH:MM]
+    const nameMaxWidth = 15; // Reasonable max for display names
+    const prefixWidth = timeStampWidth + nameMaxWidth + 6; // spacing and colons
+    const maxTextWidth = Math.max(40, terminalWidth - prefixWidth);
     
-    // Chat messages area - ensure we have proper height calculation
-    const availableHeight = Math.max(10, (process.stdout.rows || 25) - 8); // Header + input area
-    const chatMessages = this.messages.get(this.currentChat.id) || [];
-    const displayMessages = chatMessages.slice(-availableHeight);
+    let totalLines = 1; // Start with 1 for the space after header
+    const selectedMessages = [];
     
+    // Go backwards through messages to fit as many as possible
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      
+      // Calculate lines this message will take
+      const wrappedText = this.wrapText(msg.text, maxTextWidth);
+      const messageLines = wrappedText.split('\n').length;
+      
+      // Add spacing between message groups
+      let spacingLines = 0;
+      if (selectedMessages.length > 0) {
+        const nextMsg = selectedMessages[0]; // Most recent selected message
+        const timeDiff = nextMsg.timestamp - msg.timestamp;
+        const differentUser = nextMsg.from !== msg.from;
+        
+        if (differentUser || timeDiff > 300000) { // 5 minutes
+          spacingLines = 1;
+        }
+      }
+      
+      const neededLines = messageLines + spacingLines;
+      
+      // Check if this message will fit
+      if (totalLines + neededLines <= availableHeight) {
+        totalLines += neededLines;
+        selectedMessages.unshift(msg); // Add to beginning to maintain order
+      } else {
+        break; // Can't fit more messages
+      }
+    }
+    
+    return selectedMessages;
+  }
+
+  
+  // Helper function to get plain text length without ANSI codes and emojis
+  getPlainTextLength(text) {
+    // Remove ANSI escape sequences and emojis for accurate length calculation
+    return text.replace(/\u001b\[[0-9;]*[mGKH]/g, '').replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, 'E').length;
+  }
+  
+  // Legacy method (keeping for compatibility)
+  getTextLength(text) {
+    return this.getPlainTextLength(text);
+  }
+  
+  drawChatMessages(displayMessages, terminalWidth, availableHeight) {
     if (displayMessages.length === 0) {
-      const emptyMsg = 'No messages yet. Start the conversation! 💬';
-      const emptyPadding = Math.floor((terminalWidth - emptyMsg.length) / 2);
-      console.log(chalk.gray('\n' + ' '.repeat(emptyPadding) + emptyMsg + '\n'));
-    } else {
-      console.log(); // Empty line after header
-      displayMessages.forEach((msg, index) => {
-        const timestamp = new Date(msg.timestamp).toLocaleTimeString('en-US', { 
-          hour12: false, 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
-        
-        const timeColor = chalk.dim.gray;
-        const maxTextWidth = terminalWidth - 20; // Reserve space for timestamp and padding
-        
-        if (msg.from === 'You') {
-          const msgText = this.wrapText(msg.text, maxTextWidth);
-          const displayName = this.getDisplayName(this.currentChat.id, 'You');
-          console.log(chalk.green(`  ${timeColor(`[${timestamp}]`)} ${chalk.bold(displayName)}: ${msgText}`));
-        } else {
-          const msgText = this.wrapText(msg.text, maxTextWidth);
-          const displayName = this.getDisplayName(this.currentChat.id, msg.from);
-          // Use display name for color assignment to ensure custom names get colors
-          const userColor = this.getColorForUser(this.currentChat.id, displayName);
-          console.log(`  ${timeColor(`[${timestamp}]`)} ${userColor(chalk.bold(displayName))}: ${msgText}`);
-        }
-        
-        // Add some spacing between message groups
-        if (index < displayMessages.length - 1) {
-          const nextMsg = displayMessages[index + 1];
-          const timeDiff = nextMsg.timestamp - msg.timestamp;
-          if (timeDiff > 60000) { // More than 1 minute gap
-            console.log();
-          }
-        }
+      // Show different message based on whether peers are connected
+      const peerCount = this.node.peerKeys ? this.node.peerKeys.size : 0;
+      let emptyMsg, subMsg;
+      
+      if (peerCount === 0) {
+        emptyMsg = 'No messages yet. Waiting for peers to connect... 🔍';
+        subMsg = 'Messages can\'t be sent until a peer connects to the chat.';
+      } else {
+        emptyMsg = 'No messages yet. Start the conversation! 💬';
+        subMsg = null;
+      }
+      
+      const emptyPadding = Math.max(0, Math.floor((terminalWidth - emptyMsg.length) / 2));
+      let verticalPadding = Math.floor(availableHeight / 2) - 1;
+      
+      // Adjust vertical padding if we have a subtitle
+      if (subMsg) {
+        verticalPadding = Math.floor(availableHeight / 2) - 2;
+      }
+      
+      console.log('\n'.repeat(Math.max(0, verticalPadding)));
+      console.log(chalk.dim.gray(' '.repeat(emptyPadding) + emptyMsg));
+      
+      if (subMsg) {
+        const subPadding = Math.max(0, Math.floor((terminalWidth - subMsg.length) / 2));
+        console.log(chalk.dim.gray(' '.repeat(subPadding) + subMsg));
+        console.log('\n'.repeat(Math.max(0, availableHeight - verticalPadding - 3)));
+      } else {
+        console.log('\n'.repeat(Math.max(0, availableHeight - verticalPadding - 2)));
+      }
+      
+      return availableHeight; // Return total lines used
+    }
+    
+    // Display messages with smart text wrapping
+    console.log(); // Space after header
+    let linesRendered = 1; // Count the space after header
+    
+    displayMessages.forEach((msg, index) => {
+      const timestamp = new Date(msg.timestamp).toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit' 
       });
       
-      console.log(); // Empty line before input
-    }
+      // Calculate available width for message text
+      const timeStampWidth = 8; // [HH:MM] 
+      const nameMaxWidth = 15; // Reasonable max for display names
+      const prefixWidth = timeStampWidth + nameMaxWidth + 6; // spacing and colons
+      const maxTextWidth = Math.max(40, terminalWidth - prefixWidth);
+      
+      const timeColor = chalk.dim.gray;
+      
+      let msgText;
+      if (msg.from === 'System') {
+        msgText = this.wrapText(msg.text, maxTextWidth);
+        console.log(chalk.yellow(`  ${timeColor(`[${timestamp}]`)} ${chalk.bold('System')}: ${msgText}`));
+      } else if (msg.from === 'You') {
+        const displayName = this.getDisplayName(this.currentChat.id, 'You');
+        msgText = this.wrapText(msg.text, maxTextWidth);
+        console.log(chalk.green(`  ${timeColor(`[${timestamp}]`)} ${chalk.bold(displayName)}: ${msgText}`));
+      } else {
+        const displayName = this.getDisplayName(this.currentChat.id, msg.from);
+        const userColor = this.getColorForUser(this.currentChat.id, displayName);
+        msgText = this.wrapText(msg.text, maxTextWidth);
+        console.log(`  ${timeColor(`[${timestamp}]`)} ${userColor(chalk.bold(displayName))}: ${msgText}`);
+      }
+      
+      // Count lines for this message (wrapped text can be multiple lines)
+      const messageLines = msgText.split('\n').length;
+      linesRendered += messageLines;
+      
+      // Add spacing between message groups (different users or time gaps)
+      if (index < displayMessages.length - 1) {
+        const nextMsg = displayMessages[index + 1];
+        const timeDiff = nextMsg.timestamp - msg.timestamp;
+        const differentUser = nextMsg.from !== msg.from;
+        
+        if (timeDiff > 300000 || (differentUser && timeDiff > 60000)) { // 5 min gap or 1 min + different user
+          console.log();
+          linesRendered += 1; // Count the spacing line
+        }
+      }
+    });
+    
+    return linesRendered;
   }
   
   wrapText(text, maxWidth) {
@@ -687,30 +1132,35 @@ export class CLIInterface {
     return colors[Math.abs(hash) % colors.length];
   }
 
-  showInputArea() {
-    // Beautiful input area with responsive design
-    const terminalWidth = Math.min(process.stdout.columns || 80, 80);
-    const inputLine = '─'.repeat(terminalWidth - 2);
-    
-    console.log(chalk.dim.cyan('╭' + inputLine + '╮'));
-    
-    // Show helpful commands
-    const commands = '/exit /help /clear /colors /name';
-    const commandsText = `Commands: ${commands}`;
-    const commandsPadding = Math.max(0, terminalWidth - commandsText.length - 4);
-    const leftPad = Math.floor(commandsPadding / 2);
-    const rightPad = commandsPadding - leftPad;
-    
-    console.log(chalk.dim.cyan('│') + ' '.repeat(leftPad) + chalk.dim.gray(commandsText) + ' '.repeat(rightPad) + chalk.dim.cyan('│'));
-    console.log(chalk.dim.cyan('╰' + inputLine + '╯'));
+
+  // Helper method to check if we should store persistent messages
+  shouldStorePersistentMessages() {
+    return this.mode === CHAT_MODES.CHAT && 
+           this.node.peerKeys && 
+           this.node.peerKeys.size > 0;
   }
 
-  displaySystemMessage(message, showInput = true) {
+  displaySystemMessage(message, refresh = true) {
     if (this.mode === CHAT_MODES.CHAT) {
-      logger.log(chalk.yellow(`  System: ${message}`));
-      if (showInput) {
-        this.showInputArea();
+      // Only store messages if we have peers connected
+      if (this.shouldStorePersistentMessages()) {
+        // Add system message to chat and refresh display
+        if (!this.messages.has(this.currentChat.id)) {
+          this.messages.set(this.currentChat.id, []);
+        }
+        
+        this.messages.get(this.currentChat.id).push({
+          from: 'System',
+          text: message,
+          timestamp: Date.now()
+        });
+        
+        if (refresh) {
+          this.refreshChatDisplay();
+        }
       }
+      // If no peers, the message is ignored (not stored in history)
+      // This keeps the chat clean when no one is connected
     } else {
       logger.log(chalk.yellow(message));
     }
@@ -742,7 +1192,7 @@ export class CLIInterface {
   clearChatScreen() {
     if (this.currentChat) {
       this.refreshChatDisplay();
-      this.showInputArea();
+      
     }
   }
 
@@ -857,9 +1307,9 @@ export class CLIInterface {
       const coloredName = displayColor(displayName);
       this.displaySystemMessage(`  ${coloredName}`, false);
     }
-    // Show input area only once at the end
+    // Refresh display to show all color assignments
     if (this.mode === CHAT_MODES.CHAT) {
-      this.showInputArea();
+      this.refreshChatDisplay();
     }
   }
 
@@ -868,13 +1318,13 @@ export class CLIInterface {
     this.displaySystemMessage('/colors (show participants), /name <name> (set custom name for this chat)', false);
     this.displaySystemMessage('Just type your message and press Enter to send it!', false);
     if (this.mode === CHAT_MODES.CHAT) {
-      this.showInputArea();
+      this.refreshChatDisplay();
     }
     this.rl.prompt();
   }
 
   showHelp() {
-    const terminalWidth = Math.min(process.stdout.columns || 80, 80);
+    const terminalWidth = process.stdout.columns || 80;
     
     console.log(chalk.bold.yellow('📖 MELQ Help & Commands'));
     console.log(chalk.dim('═'.repeat(terminalWidth - 2)));
@@ -967,7 +1417,7 @@ export class CLIInterface {
   }
 
   showWelcomeBanner() {
-    const terminalWidth = Math.min(process.stdout.columns || 80, 80);
+    const terminalWidth = process.stdout.columns || 80;
     const title = '🔐 MELQ - Quantum-Secure P2P Chat';
     const subtitle = 'Connected as: ' + this.node.nodeId.slice(-8);
     const peerCount = this.node.peerKeys ? this.node.peerKeys.size : 0;
@@ -992,9 +1442,134 @@ export class CLIInterface {
     console.log(chalk.dim.gray('💡 Type "help" for available commands or "ls" to see chats.'));
     console.log(chalk.dim.gray('🗂️  Use directory-like commands to navigate: cd, ls, mkdir\n'));
   }
+  
+  centerText(text, width, colorFunc = null) {
+    // Remove ANSI codes for length calculation
+    const plainText = text.replace(/\u001b\[[0-9;]*m/g, '');
+    const padding = Math.max(0, width - plainText.length);
+    const leftPad = Math.floor(padding / 2);
+    const rightPad = padding - leftPad;
+    
+    const processedText = colorFunc ? colorFunc(plainText) : text;
+    return ' '.repeat(leftPad) + processedText + ' '.repeat(rightPad);
+  }
+  
+  getUptime() {
+    const uptimeMs = Date.now() - this.lastActivity;
+    const seconds = Math.floor(uptimeMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  }
 
   start() {
+    this.lastActivity = Date.now(); // Set initial start time
     this.showWelcomeBanner();
     this.rl.prompt();
+  }
+
+  // ===============================
+  // HOST SHUTDOWN & CONNECTION HANDLING
+  // ===============================
+
+  handleHostShutdown() {
+    try {
+      // Exit alternative screen if in chat mode
+      if (this.mode === CHAT_MODES.CHAT) {
+        process.stdout.write('\x1b[?1049l');
+        this.mode = CHAT_MODES.DIRECTORY;
+        this.currentChat = null;
+      }
+
+      // Clear all local data
+      this.messages.clear();
+      this.chatColorAssignments.clear();
+      this.customNames.clear();
+      
+      // Update connection status
+      this.connectionStatus = CONNECTION_STATUS.DISCONNECTED;
+      
+      console.clear();
+      this.showHostShutdownScreen();
+      
+      // Return to main menu after delay
+      setTimeout(() => {
+        console.clear();
+        this.showWelcomeBanner();
+        this.updatePrompt();
+        this.rl.prompt();
+      }, 3000);
+      
+    } catch (error) {
+      this.logError('Host Shutdown Handler', error);
+      this.showError('Error handling host shutdown');
+    }
+  }
+
+  showHostShutdownScreen() {
+    const width = this.terminalWidth;
+    const border = '═'.repeat(width - 2);
+    
+    console.log(chalk.red('╔' + border + '╗'));
+    console.log(chalk.red('║') + chalk.bold.white(this.centerText('HOST DISCONNECTED', width - 2)) + chalk.red('║'));
+    console.log(chalk.red('╠' + border + '╣'));
+    console.log(chalk.red('║') + ' '.repeat(width - 2) + chalk.red('║'));
+    console.log(chalk.red('║') + chalk.yellow('  📡 The host has shut down the network').padEnd(width - 1) + chalk.red('║'));
+    console.log(chalk.red('║') + chalk.white('  🧹 All chat history has been cleared').padEnd(width - 1) + chalk.red('║'));
+    console.log(chalk.red('║') + chalk.dim('  🔒 Your data remains secure and private').padEnd(width - 1) + chalk.red('║'));
+    console.log(chalk.red('║') + ' '.repeat(width - 2) + chalk.red('║'));
+    console.log(chalk.red('║') + chalk.cyan('  ⏳ Returning to main menu in 3 seconds...').padEnd(width - 1) + chalk.red('║'));
+    console.log(chalk.red('║') + ' '.repeat(width - 2) + chalk.red('║'));
+    console.log(chalk.red('╚' + border + '╝'));
+  }
+
+  handleConnectionLoss(code, reason) {
+    this.connectionStatus = CONNECTION_STATUS.ERROR;
+    this.lastError = { code, reason, timestamp: new Date().toISOString() };
+    
+    if (this.mode === CHAT_MODES.CHAT) {
+      this.showError(`Connection lost (${code}). Attempting to reconnect...`);
+      this.attemptReconnection();
+    } else {
+      this.showError(`Network connection lost (${code}): ${reason}`);
+      console.log(chalk.yellow('💡 Use "connect" command to reconnect to a network'));
+      this.rl.prompt();
+    }
+  }
+
+  attemptReconnection() {
+    if (this.connectionAttempts >= this.maxRetries) {
+      this.showError('Maximum reconnection attempts reached. Returning to main menu.');
+      this.exitChat();
+      return;
+    }
+
+    this.connectionAttempts++;
+    this.connectionStatus = CONNECTION_STATUS.RECONNECTING;
+    
+    this.showWarning(`Reconnection attempt ${this.connectionAttempts}/${this.maxRetries}...`);
+    
+    // Attempt to reconnect after a delay
+    setTimeout(() => {
+      try {
+        // This would trigger the node to attempt reconnection
+        if (this.node && this.node.coordinatorWs) {
+          // Reset and attempt connection
+          this.connectionStatus = CONNECTION_STATUS.CONNECTING;
+          this.showWarning('Establishing connection...');
+        }
+      } catch (error) {
+        this.logError('Reconnection Attempt', error);
+        this.showError('Reconnection failed');
+        this.exitChat();
+      }
+    }, 2000 * this.connectionAttempts); // Progressive delay
   }
 }
