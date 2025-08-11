@@ -21,7 +21,6 @@ export class CLIInterface {
     this.chatHeight = Math.max(10, process.stdout.rows - 6); // Reserve space for input area
     this.isConnecting = false;
     this.connectionStatus = 'disconnected';
-    this.typingUsers = new Set();
     this.lastActivity = Date.now();
     this.statusInterval = null;
     this.spinnerFrame = 0;
@@ -49,12 +48,20 @@ export class CLIInterface {
     });
 
     this.rl.on('close', () => {
+      // Exit alternative screen buffer if we're in a chat
+      if (this.mode === CHAT_MODES.CHAT) {
+        process.stdout.write('\x1b[?1049l');
+      }
       console.log('\nGoodbye!');
       this.node.disconnect();
       process.exit(0);
     });
 
     process.on('SIGINT', () => {
+      // Exit alternative screen buffer if we're in a chat
+      if (this.mode === CHAT_MODES.CHAT) {
+        process.stdout.write('\x1b[?1049l');
+      }
       this.rl.close();
     });
   }
@@ -103,6 +110,23 @@ export class CLIInterface {
     this.node.onMessage((messageData) => {
       this.handleIncomingMessage(messageData);
     });
+  }
+
+  // Method called by UnifiedNode.safeLog() for synchronous/asynchronous logging
+  log(message, color = null) {
+    // Use synchronous logging when in home menu mode to prevent prompt disruption
+    if (this.mode === CHAT_MODES.DIRECTORY) {
+      const output = color ? color(message) : message;
+      console.log(output);
+      // Re-prompt in home menu to keep interface clean
+      if (this.rl) {
+        this.rl.prompt();
+      }
+    } else {
+      // Use async logger in chat mode to prevent display corruption
+      const outputMessage = color ? color(message) : message;
+      logger.log(outputMessage);
+    }
   }
 
   getPrompt() {
@@ -496,6 +520,9 @@ export class CLIInterface {
     this.currentChat = chat;
     this.mode = CHAT_MODES.CHAT;
     
+    // Enter alternative screen buffer to prevent scroll-up access to previous content
+    process.stdout.write('\x1b[?1049h');
+    
     this.refreshChatDisplay();
     this.showInputArea();
     this.updatePrompt();
@@ -577,12 +604,6 @@ export class CLIInterface {
           }
         }
       });
-      
-      // Show typing indicators if any
-      if (this.typingUsers.size > 0) {
-        const typingList = Array.from(this.typingUsers).join(', ');
-        console.log(chalk.dim.italic(`  ${typingList} ${this.typingUsers.size === 1 ? 'is' : 'are'} typing...`));
-      }
       
       console.log(); // Empty line before input
     }
@@ -684,10 +705,12 @@ export class CLIInterface {
     console.log(chalk.dim.cyan('╰' + inputLine + '╯'));
   }
 
-  displaySystemMessage(message) {
+  displaySystemMessage(message, showInput = true) {
     if (this.mode === CHAT_MODES.CHAT) {
       logger.log(chalk.yellow(`  System: ${message}`));
-      this.showInputArea();
+      if (showInput) {
+        this.showInputArea();
+      }
     } else {
       logger.log(chalk.yellow(message));
     }
@@ -695,6 +718,9 @@ export class CLIInterface {
 
   exitChat() {
     const chatName = this.currentChat ? this.currentChat.name : 'chat';
+    
+    // Exit alternative screen buffer to return to main terminal
+    process.stdout.write('\x1b[?1049l');
     
     this.currentPath = '/';
     this.currentChat = null;
@@ -823,20 +849,27 @@ export class CLIInterface {
       return;
     }
     
-    this.displaySystemMessage('Current participants with their assigned colors:');
+    this.displaySystemMessage('Current participants with their assigned colors:', false);
     for (const [username, colorFunc] of assignments.entries()) {
       const displayName = this.getDisplayName(this.currentChat.id, username);
       // Get color for display name to match message display
       const displayColor = this.getColorForUser(this.currentChat.id, displayName);
       const coloredName = displayColor(displayName);
-      this.displaySystemMessage(`  ${coloredName}`);
+      this.displaySystemMessage(`  ${coloredName}`, false);
+    }
+    // Show input area only once at the end
+    if (this.mode === CHAT_MODES.CHAT) {
+      this.showInputArea();
     }
   }
 
   showChatHelp() {
-    this.displaySystemMessage('Chat commands: /exit (leave chat), /help (this help), /clear (refresh screen)');
-    this.displaySystemMessage('/colors (show participants), /name <name> (set custom name for this chat)');
-    this.displaySystemMessage('Just type your message and press Enter to send it!');
+    this.displaySystemMessage('Chat commands: /exit (leave chat), /help (this help), /clear (refresh screen)', false);
+    this.displaySystemMessage('/colors (show participants), /name <name> (set custom name for this chat)', false);
+    this.displaySystemMessage('Just type your message and press Enter to send it!', false);
+    if (this.mode === CHAT_MODES.CHAT) {
+      this.showInputArea();
+    }
     this.rl.prompt();
   }
 
