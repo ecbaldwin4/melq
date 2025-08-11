@@ -5,13 +5,16 @@ A secure peer-to-peer chat system with a directory-like CLI interface. Uses ngro
 ## Features
 
 - **🔐 Quantum-Secure**: MLKEM-768 key exchange + AES-256 encryption
+- **🔒 Password Protection**: Optional session passwords for added security
 - **🌐 P2P Architecture**: Direct encrypted messaging between nodes
 - **🗂️ Beautiful TUI**: Filesystem-like interface with emojis and colors
 - **🚀 Multiple Connection Methods**: localtunnel (no account!), ngrok, serveo, or manual setup
-- **💬 Real-time Chat**: WebSocket-based with typing indicators
-- **📱 Responsive Design**: Adapts to different terminal sizes
+- **💬 Real-time Chat**: WebSocket-based with intelligent message handling
+- **📱 Responsive Design**: Adapts to different terminal sizes with fixed-height chat
 - **⚡ Smart Discovery**: Automatic peer discovery and connection
 - **🎨 Rich Interface**: Loading animations, status indicators, and intuitive commands
+- **🏗️ Multi-Node Support**: Run multiple MELQ instances simultaneously
+- **🔄 Easy Updates**: Streamlined npm-based update system
 
 ## Quick Start
 
@@ -72,10 +75,14 @@ What would you like to do?
 ### Advanced Usage
 
 ```bash
-melq --host          # Directly host a network
-melq --join <code>   # Join with connection code
-melq --update        # Update to latest version
-melq --help          # Show all options
+melq --host                        # Directly host a network
+melq --host --internet             # Host with internet access
+melq --host --password mypass      # Host password-protected session
+melq --host --internet --password secure123  # Internet + password
+melq --join <code>                 # Join with connection code
+melq --update                      # Update to latest version
+melq --check-updates               # Check for available updates
+melq --help                        # Show all options
 ```
 
 ## Internet Connectivity (No Account Required!)
@@ -98,8 +105,9 @@ When you run `melq --host`, you'll see:
 ```
 Network Access Options:
 1. 🏠 Local network only (same WiFi/LAN)
-2. 🌐 Local + Internet (anyone can join) ← Choose this!
-3. 🔧 Advanced options
+2. 🌐 Local + Internet (anyone can join)
+3. 🔒 Password-protected session ← New! Secure your chat
+4. 🔧 Advanced options
 
 Tunneling Method:
 1. Auto (prefer localtunnel - instant, no signup!) ← Recommended  
@@ -108,12 +116,15 @@ Tunneling Method:
 4. Manual setup (port forwarding)
 ```
 
-**Recommendation**: Choose option 2 (Local + Internet) with option 1 (Auto) for the easiest setup! Auto mode prioritizes localtunnel for instant, no-signup access.
+**New Password Protection**: Choose option 3 to create a secure session that requires a password to join. Perfect for private conversations!
+
+**Recommendation**: Choose option 2 (Local + Internet) for open access or option 3 for secure access. Auto tunneling mode prioritizes localtunnel for instant, no-signup access.
 
 ### 🔗 Connection Codes
 
 After setup, MELQ shows you connection codes to share:
 
+**Regular Session:**
 ```
 📋 Connection Codes:
 🏠 Local (same network):
@@ -125,6 +136,70 @@ After setup, MELQ shows you connection codes to share:
 Share these codes with others so they can join!
 Command: melq --join <connection_code>
 ```
+
+**Password-Protected Session:**
+```
+📋 Connection Codes:
+🔒 Password-Protected Session
+🏠 Local (same network):
+ melq://192.168.1.100:3000 
+
+🌐 Internet (anywhere):
+ melq://abcd123.loca.lt 
+
+⚠️  Password required to join this session
+Users will be prompted for password when connecting
+
+Share these codes with others so they can join!
+Command: melq --join <connection_code>
+```
+
+## 🔒 Password Protection (New!)
+
+MELQ now supports password-protected sessions for enhanced security:
+
+### Creating Password-Protected Sessions
+
+**Interactive Mode:**
+1. Run `melq` and choose "Host a new network"
+2. Select option 3: "🔒 Password-protected session"
+3. Enter your desired password
+4. Choose whether to also expose to internet
+5. Share connection code + password with trusted users
+
+**Command Line:**
+```bash
+# Local password-protected session
+melq --host --password mysecretpass
+
+# Internet + password protection
+melq --host --internet --password supersecure123
+
+# Local only with password
+melq --host --local-only --password teamchat
+```
+
+### Joining Password-Protected Sessions
+
+When you join a password-protected session:
+```
+🔒 Password Required
+══════════════════════════════════════════════════
+This session is password protected. Please enter the password.
+
+Enter password: _
+```
+
+Simply enter the password provided by the host. Failed attempts will be rejected and the connection closed.
+
+### Security Benefits
+
+- **Access Control**: Only users with the password can join your session
+- **Private Conversations**: Perfect for sensitive discussions
+- **Team Meetings**: Secure group chats with controlled access
+- **Family Chats**: Keep conversations within trusted circles
+
+The password adds an additional layer of security on top of MELQ's quantum-secure encryption.
 
 ## Commands
 
@@ -230,17 +305,48 @@ What would you like to do?
 - Sets up the `melq` command globally
 - Tests that everything works
 
-### Example Session
+### Example Sessions
 
+**Creating a Password-Protected Session:**
 ```bash
-# Start MELQ (after installation)
+# Start MELQ
 melq
 
-# Choose "Host a network" from menu
-# MELQ automatically sets up secure connection and shows your connection code
-# Share the code with friends so they can join!
+# Choose option 1: Host a new network
+# Then choose option 3: Password-protected session
+# Enter password: "teammeeting2024"
+# Choose internet exposure if needed
 
-# Navigate and create chats
+# MELQ shows connection codes with password indicator:
+📋 Connection Codes:
+🔒 Password-Protected Session
+🏠 Local: melq://192.168.1.100:3000
+🌐 Internet: melq://abc123.loca.lt
+
+⚠️  Password required to join this session
+Share codes + password with trusted users only!
+```
+
+**Joining a Password-Protected Session:**
+```bash
+melq --join melq://abc123.loca.lt
+
+# Password prompt appears:
+🔒 Password Required
+Enter password: teammeeting2024
+
+# Success! Now navigate and chat:
+[user123] /$ ls
+📁 Available chats:
+  💬 general [3] 2m ago
+  📁 planning (empty)
+
+[user123] /$ cd general
+🟢 > Welcome to the secure team meeting!
+```
+
+**Regular Chat Navigation:**
+```bash
 [abc12345] /$ ls
 📁 Available chats:
   📭 No chats available
@@ -273,9 +379,23 @@ melq
 - **Automatic Key Exchange**: Seamless post-quantum key establishment between all peers
 - **Message Authentication**: GCM mode provides both confidentiality and authenticity
 
+**🔒 NEW: Session Access Control:**
+- **Password Protection**: Optional password authentication before node registration
+- **Access Denial**: Failed password attempts result in connection termination
+- **Secure Password Prompts**: Clean, user-friendly password input interface
+- **Multi-Layer Security**: Password protection adds an additional barrier on top of quantum encryption
+
+**Enhanced User Experience:**
+- **Professional Chat Interface**: Fixed-height chat with intelligent message management
+- **Anti-Scroll Design**: Chat never scrolls, always shows most recent messages
+- **Multi-Node Support**: Run multiple MELQ instances on different ports simultaneously
+- **Streamlined Updates**: Simple npm-based update system with development detection
+- **Connection Status**: Clear indicators for password-protected vs open sessions
+
 **Security Validation Report (Latest):**
 - ✅ ML-KEM-768 implementation verified using official `mlkem` v2.3.1 package
 - ✅ All node-to-node communication secured with post-quantum cryptography
+- ✅ Password authentication implemented with secure challenge/response protocol
 - ✅ No insecure communication channels detected
 - ✅ Proper cryptographic key management and lifecycle
 - ✅ NIST-approved algorithms throughout the security stack
