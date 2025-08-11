@@ -14,22 +14,23 @@ echo.
 echo Note: This installer will attempt automated dependency installation.
 echo If you encounter permission errors, please run as Administrator.
 echo.
+echo.
 
 REM Check if running from correct location
 if exist "src\index.js" (
     echo ⚠️  It looks like you're already in the MELQ directory.
     echo Please run npm start instead from inside the MELQ directory.
     echo.
-    pause
+    echo Exiting installer...
     exit /b 1
 )
 
 echo What this installer will do:
 echo.
-echo - Check if Node.js is installed (install if needed)
-echo - Download MELQ source code  
-echo - Install dependencies
-echo - Set up global 'melq' command
+echo   * Check if Node.js is installed ^(install if needed^)
+echo   * Download MELQ source code
+echo   * Install dependencies
+echo   * Set up global 'melq' command
 echo.
 
 echo.
@@ -46,17 +47,20 @@ if errorlevel 1 (
     echo Node.js is required to run MELQ.
     echo.
     echo AUTOMATED INSTALLATION ATTEMPT:
-    echo Trying to install Node.js via winget (Windows Package Manager)...
+    echo Trying to install Node.js via winget ^(Windows Package Manager^)...
+    echo.
     
     REM Try winget first (available on Windows 10+ with App Installer)
     winget install OpenJS.NodeJS --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
     if not errorlevel 1 (
         echo [OK] Node.js installed successfully via winget!
         echo Please restart this installer to continue.
-        pause
+        echo.
+        echo Exiting to allow Node.js installation to complete...
         exit /b 0
     )
     
+    echo.
     echo Winget installation failed. Trying chocolatey...
     echo.
     
@@ -68,10 +72,12 @@ if errorlevel 1 (
         if not errorlevel 1 (
             echo [OK] Node.js installed successfully via Chocolatey!
             echo Please restart this installer to continue.
-            pause
+            echo.
+            echo Exiting to allow Node.js installation to complete...
             exit /b 0
         )
     )
+    echo.
     
     echo.
     echo OPENING NODE.JS DOWNLOAD PAGE:
@@ -80,11 +86,13 @@ if errorlevel 1 (
     echo Opening Node.js download page automatically...
     echo Please download the LTS version and run the installer.
     echo After installation, restart this installer.
+    echo.
     start https://nodejs.org/
     echo.
     echo The installer will exit so you can install Node.js.
     echo Run this installer again after Node.js is installed.
-    pause
+    echo.
+    echo Exiting for Node.js installation...
     exit /b 1
 )
 
@@ -105,11 +113,13 @@ if %MAJOR_VERSION% LSS 16 (
     echo.
     echo Opening Node.js download page automatically...
     start https://nodejs.org/
+    echo.
     echo Please download and install the LTS version, then restart this installer.
     echo.
     echo The installer will exit so you can upgrade Node.js.
     echo Run this installer again after upgrading Node.js.
-    pause
+    echo.
+    echo Exiting for Node.js upgrade...
     exit /b 1
 )
 
@@ -131,7 +141,8 @@ if errorlevel 1 (
     if not errorlevel 1 (
         echo [OK] Git installed successfully via winget!
         echo Please restart this installer to continue.
-        pause
+        echo.
+        echo Exiting to allow Git installation to complete...
         exit /b 0
     )
     
@@ -145,7 +156,8 @@ if errorlevel 1 (
         if not errorlevel 1 (
             echo [OK] Git installed successfully via Chocolatey!
             echo Please restart this installer to continue.
-            pause
+            echo.
+            echo Exiting to allow Git installation to complete...
             exit /b 0
         )
     )
@@ -164,14 +176,14 @@ if errorlevel 1 (
     echo.
     echo The installer will exit so you can install Git.
     echo Run this installer again after installing Git.
-    pause
+    echo.
+    echo Exiting for Git installation...
     exit /b 1
 )
 
 echo [OK] Git found
 echo.
 
-echo.
 REM Create installation directory
 set "INSTALL_DIR=%USERPROFILE%\MELQ"
 echo 📁 Installing to: %INSTALL_DIR%
@@ -192,7 +204,7 @@ if errorlevel 1 (
     echo ❌ Failed to download MELQ
     echo Please check your internet connection and try again.
     echo.
-    pause
+    echo Exiting due to download failure...
     exit /b 1
 )
 
@@ -209,7 +221,7 @@ if errorlevel 1 (
     echo ❌ Failed to install dependencies
     echo Please check your internet connection and try again
     echo.
-    pause
+    echo Exiting due to dependency installation failure...
     exit /b 1
 )
 
@@ -327,4 +339,5 @@ melq 2>nul || (
 )
 
 echo.
-pause
+echo MELQ installation completed! You can now run 'melq' from any command prompt.
+echo.
