@@ -7,6 +7,36 @@ echo "🔧 MELQ PATH Fix Script"
 echo "======================="
 echo
 
+# Detect WSL environment
+if [ -n "$WSL_DISTRO_NAME" ] || [ "$(uname -r | grep -i microsoft)" ]; then
+    echo "🐧 WSL (Windows Subsystem for Linux) detected"
+    
+    # Check if npm is Windows npm vs Linux npm
+    NPM_PATH=$(which npm 2>/dev/null)
+    if [[ "$NPM_PATH" == *"/mnt/c/"* ]] || npm config get prefix 2>/dev/null | grep -q "C:\\"; then
+        echo "⚠️  WARNING: You're using Windows npm in WSL"
+        echo "   This can cause path conflicts with Linux files"
+        echo
+        echo "🔧 Recommended fixes:"
+        echo "1. Install Node.js in WSL (Linux):"
+        echo "   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash"
+        echo "   source ~/.bashrc"
+        echo "   nvm install node"
+        echo
+        echo "2. Or run MELQ directly without global install:"
+        echo "   cd ~/MELQ && node src/index.js"
+        echo
+        echo "3. Continue anyway (may not work properly)"
+        echo
+        read -p "Continue with Windows npm? (y/N): " continue_anyway
+        if [[ ! $continue_anyway =~ ^[Yy]$ ]]; then
+            echo "Exiting. Please install Linux Node.js and try again."
+            exit 1
+        fi
+        echo
+    fi
+fi
+
 # Check if we're in the MELQ directory
 if [ ! -f "package.json" ] || ! grep -q '"name": "melq"' package.json 2>/dev/null; then
     echo "❌ Please run this script from the MELQ directory:"

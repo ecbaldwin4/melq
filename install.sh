@@ -326,7 +326,20 @@ fi
 
 echo "✅ Dependencies installed and secured"
 
-# Create a troubleshooting file with instructions
+# Detect WSL and warn about potential npm issues
+if [ -n "$WSL_DISTRO_NAME" ] || [ "$(uname -r | grep -i microsoft)" ]; then
+    echo
+    echo "🐧 WSL (Windows Subsystem for Linux) detected"
+    
+    # Check if npm is Windows npm
+    if npm config get prefix 2>/dev/null | grep -q "C:\\"; then
+        echo "⚠️  WARNING: Using Windows npm in WSL may cause path issues"
+        echo "   If 'melq' command doesn't work, run: cd ~/MELQ && node src/index.js"
+        echo
+    fi
+fi
+
+# Create a troubleshooting file with WSL-specific instructions
 cat > "TROUBLESHOOTING.txt" << 'TROUBLESHOOT_EOF'
 MELQ Installation Troubleshooting
 ==================================
@@ -361,6 +374,20 @@ If 'melq' command is not found:
 7. Use npm script:
    npm start
 
+🐧 WSL (Windows Subsystem for Linux) Issues:
+
+If you're using WSL and getting path errors like "C:\Users\...":
+
+1. You're using Windows npm in WSL (common issue)
+2. Install Linux Node.js instead:
+   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+   source ~/.bashrc
+   nvm install node
+   cd ~/MELQ && npm install && npm link
+
+3. Or always run directly:
+   cd ~/MELQ && node src/index.js
+
 For help: https://github.com/ecbaldwin4/melq
 TROUBLESHOOT_EOF
 
@@ -368,29 +395,23 @@ echo
 
 # Install globally (link to current directory)
 echo "🔗 Setting up global 'melq' command..."
+
+# Try npm link first
 if npm link 2>/dev/null; then
     echo "✅ MELQ installed globally"
+    LINK_SUCCESS="true"
+elif sudo npm link 2>/dev/null; then
+    echo "✅ MELQ installed globally (with sudo)"
+    LINK_SUCCESS="true"
 else
-    echo "❌ Failed to install globally. Trying with sudo..."
-    
-    # Try with sudo
-    if sudo npm link 2>/dev/null; then
-        echo "✅ MELQ installed globally (with sudo)"
-    else
-        echo "⚠️  Global installation failed"
-        echo
-        echo "You can run MELQ by opening a terminal in:"
-        echo "$INSTALL_DIR"
-        echo "And typing: npm start"
-        echo
-        echo "Or add this directory to your PATH"
-        goto_success="true"
-    fi
+    echo "⚠️  Global npm link failed, but this is common on Linux/WSL"
+    echo "   Will set up PATH manually instead..."
+    LINK_SUCCESS="false"
 fi
 
 echo
 
-# Test installation
+# Test installation and fix PATH if needed
 echo "🧪 Testing installation..."
 if command -v melq &> /dev/null; then
     echo "✅ Installation successful!"
@@ -402,9 +423,8 @@ if command -v melq &> /dev/null; then
     echo "   melq --help             # Show help"
     echo
 else
-    echo "⚠️  'melq' command not found in PATH"
+    echo "⚠️  'melq' command not found - fixing PATH..."
     echo
-    echo "🔧 Fixing PATH automatically..."
     
     # Get npm global bin directory (works with both old and new npm versions)
     NPM_BIN=""
@@ -456,14 +476,25 @@ else
         # Test again
         if command -v melq &> /dev/null; then
             echo "✅ 'melq' command is now available!"
+            echo
+            echo "🎉 You can now run MELQ from anywhere with:"
+            echo "   melq                    # Interactive menu"
+            echo "   melq --host             # Host a network"  
+            echo "   melq --join <code>      # Join a network"
+            echo "   melq --help             # Show help"
+            echo
         else
-            echo "⚠️  PATH updated, but may need to restart terminal"
-            echo "   Or run: export PATH=\"$NPM_BIN:\$PATH\""
+            echo "⚠️  PATH updated, but needs terminal restart"
+            echo "   Run: source ~/.bashrc"
+            echo "   Or restart your terminal"
+            echo "   Then try: melq"
+            echo
         fi
     else
-        echo "❌ Could not find melq executable"
-        echo "   You can run MELQ from: $INSTALL_DIR"
-        echo "   Command: cd $INSTALL_DIR && npm start"
+        echo "❌ Could not locate npm global directory"
+        echo "   You can run MELQ directly with:"
+        echo "   cd $INSTALL_DIR && npm start"
+        echo
     fi
 fi
 
