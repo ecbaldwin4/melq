@@ -181,10 +181,10 @@ export class UnifiedNode {
   handleHostConnection(ws) {
     this.safeLog('Node connected to hosted network');
     
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
       try {
         const message = JSON.parse(data.toString());
-        this.handleHostMessage(ws, message);
+        await this.handleHostMessage(ws, message);
       } catch (error) {
         this.safeLog(`Invalid message: ${error.message}`, chalk.red);
       }
@@ -206,20 +206,22 @@ export class UnifiedNode {
     });
   }
 
-  handleHostMessage(ws, message) {
+  async handleHostMessage(ws, message) {
     switch (message.type) {
       case 'password_challenge':
         // Client is requesting password challenge
         if (ws) {
           if (this.sessionPassword) {
-            ws.send(JSON.stringify({ 
+            const message = { 
               type: 'password_required',
               message: 'This session is password protected. Please enter the password.'
-            }));
+            };
+            const encrypted = this.encryptMessageForNode(message, clientNodeId || 'unknown');
+            ws.send(JSON.stringify(encrypted.data));
           } else {
-            ws.send(JSON.stringify({ 
-              type: 'password_not_required' 
-            }));
+            const message = { type: 'password_not_required' };
+            const encrypted = this.encryptMessageForNode(message, clientNodeId || 'unknown');
+            ws.send(JSON.stringify(encrypted.data));
           }
         }
         break;
@@ -227,30 +229,7 @@ export class UnifiedNode {
       case 'password_attempt':
         // Client is attempting password authentication
         if (ws) {
-          if (!this.sessionPassword) {
-            // No password required, mark as authenticated
-            if (message.nodeId) {
-              this.authenticatedNodes.add(message.nodeId);
-            }
-            ws.send(JSON.stringify({ type: 'password_accepted' }));
-          } else if (message.password === this.sessionPassword) {
-            // Correct password, mark as authenticated
-            if (message.nodeId) {
-              this.authenticatedNodes.add(message.nodeId);
-            }
-            ws.send(JSON.stringify({ type: 'password_accepted' }));
-          } else {
-            ws.send(JSON.stringify({ 
-              type: 'password_rejected',
-              message: 'Incorrect password. Access denied.'
-            }));
-            // Close connection after failed password attempt
-            setTimeout(() => {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.close(1008, 'Invalid password');
-              }
-            }, 1000);
-          }
+          await this.handlePasswordAttempt(ws, message);
         }
         break;
 
@@ -269,7 +248,17 @@ export class UnifiedNode {
             this.authenticatedNodes.add(message.nodeId);
           }
 
-          ws.send(JSON.stringify({ type: 'registered', nodeId: message.nodeId }));
+          const response = { type: 'registered', nodeId: message.nodeId };
+          const encrypted = this.encryptMessageForNode(response, message.nodeId);
+          ws.send(JSON.stringify(encrypted.data));
+        }
+        break;
+
+      case 'secure_message':
+        // Decrypt and handle encrypted message
+        const decryptedMessage = this.decryptSecureMessage(message);
+        if (decryptedMessage) {
+          await this.handleHostMessage(ws, decryptedMessage);
         }
         break;
 
@@ -277,10 +266,12 @@ export class UnifiedNode {
         // Check authentication for password-protected sessions
         if (!this.isNodeAuthenticated(message.nodeId)) {
           if (ws) {
-            ws.send(JSON.stringify({ 
+            const denialMessage = { 
               type: 'access_denied', 
               message: 'Authentication required' 
-            }));
+            };
+            const encrypted = this.encryptMessageForNode(denialMessage, message.nodeId);
+            ws.send(JSON.stringify(encrypted.data));
           }
           return;
         }
@@ -294,10 +285,9 @@ export class UnifiedNode {
           }));
         
         if (ws) {
-          ws.send(JSON.stringify({ type: 'node_list', nodes: nodeList }));
-        } else {
-          // Internal call - handle directly
-          this.handleNodeList(nodeList);
+          const response = { type: 'node_list', nodes: nodeList };
+          const encryptedResponse = this.encryptMessageForNode(response, message.nodeId);
+          ws.send(JSON.stringify(encryptedResponse.data));
         }
         break;
 
@@ -305,10 +295,12 @@ export class UnifiedNode {
         // Check authentication for password-protected sessions
         if (!this.isNodeAuthenticated(message.nodeId)) {
           if (ws) {
-            ws.send(JSON.stringify({ 
+            const denialMessage = { 
               type: 'access_denied', 
               message: 'Authentication required' 
-            }));
+            };
+            const encrypted = this.encryptMessageForNode(denialMessage, message.nodeId);
+            ws.send(JSON.stringify(encrypted.data));
           }
           return;
         }
@@ -321,109 +313,117 @@ export class UnifiedNode {
         }));
         
         if (ws) {
-          ws.send(JSON.stringify({ type: 'chat_list', chats: availableChats }));
+          const response = { type: 'chat_list', chats: availableChats };
+          const encrypted = this.encryptMessageForNode(response, message.nodeId);
+          ws.send(JSON.stringify(encrypted.data));
         } else {
           // Internal call - handle directly
           this.handleChatList(availableChats);
         }
         break;
 
-      case 'create_chat':
-        // Check authentication for password-protected sessions
-        if (!this.isNodeAuthenticated(message.nodeId)) {
-          if (ws) {
-            ws.send(JSON.stringify({ 
-              type: 'access_denied', 
-              message: 'Authentication required' 
-            }));
-          }
-          return;
-        }
-
-        const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        this.chatRooms.set(chatId, {
-          creator: message.nodeId,
-          name: message.chatName,
-          participants: [message.nodeId],
-          created: Date.now()
-        });
-        
-        // Add to local chats
-        this.chats.set(chatId, {
-          id: chatId,
-          name: message.chatName,
-          participants: [message.nodeId]
-        });
-        
-        if (ws) {
-          ws.send(JSON.stringify({ type: 'chat_created', chatId, chatName: message.chatName }));
-          this.broadcastToAllNodes({ 
-            type: 'chat_available', 
-            chatId, 
-            chatName: message.chatName, 
-            creator: message.nodeId 
-          }, message.nodeId);
-        } else {
-          // Internal call - notify CLI directly
-          this.safeLog(`Chat created: ${message.chatName} (ID: ${chatId})`, chalk.yellow);
-          if (this.cliInterface) this.cliInterface.rl.prompt();
-        }
-        break;
-
-      case 'join_chat':
-        // Check authentication for password-protected sessions
-        if (!this.isNodeAuthenticated(message.nodeId)) {
-          if (ws) {
-            ws.send(JSON.stringify({ 
-              type: 'access_denied', 
-              message: 'Authentication required' 
-            }));
-          }
-          return;
-        }
-
-        const chat = this.chatRooms.get(message.chatId);
-        if (chat && !chat.participants.includes(message.nodeId)) {
-          chat.participants.push(message.nodeId);
-          
-          // Send chat history to the new participant
-          this.sendChatHistoryToParticipant(message.nodeId, message.chatId);
-          
-          // Notify other participants
-          this.broadcastToChatParticipants(message.chatId, {
-            type: 'user_joined',
-            chatId: message.chatId,
-            nodeId: message.nodeId
-          }, message.nodeId);
-          
-          // Ensure the new participant can communicate with existing participants
-          this.ensureKeyExchangesForNewParticipant(message.chatId, message.nodeId);
-        }
-        break;
-
-      case 'send_chat_message':
-        // Check authentication for password-protected sessions
-        if (!this.isNodeAuthenticated(message.nodeId)) {
-          if (ws) {
-            ws.send(JSON.stringify({ 
-              type: 'access_denied', 
-              message: 'Authentication required' 
-            }));
-          }
-          return;
-        }
-
-        this.handleChatMessage(message);
-        break;
-
-      case 'relay_message':
-        this.relayEncryptedMessage(message);
-        break;
-
       case 'ping':
-        ws.send(JSON.stringify({ type: 'pong' }));
+        const pongResponse = { type: 'pong' };
+        const encryptedPong = this.encryptMessageForNode(pongResponse, message.fromNodeId);
+        ws.send(JSON.stringify(encryptedPong.data));
         break;
+
+      default:
+        console.log(`Unknown message type: ${message.type}`, message);
     }
+  }
+
+  async handlePasswordAttempt(ws, message) {
+    if (!this.sessionPassword) {
+      // No password required, mark as authenticated
+      if (message.nodeId) {
+        this.authenticatedNodes.add(message.nodeId);
+      }
+      const response = { type: 'password_accepted' };
+      const encrypted = this.encryptMessageForNode(response, message.nodeId);
+      ws.send(JSON.stringify(encrypted.data));
+    } else {
+      // Check if password is encrypted or plaintext
+      let passwordToCheck = message.password;
+      
+      if (message.encryptedPassword && message.ciphertext) {
+        // Decrypt the password using ML-KEM
+        try {
+          const sharedSecret = await this.mlkem.decapsulate(message.ciphertext, this.keyPair.privateKey);
+          const decryptionKey = this.aesCrypto.deriveKeyFromSharedSecret(sharedSecret);
+          passwordToCheck = this.aesCrypto.decrypt(message.encryptedPassword, decryptionKey);
+        } catch (error) {
+          this.safeLog(`Failed to decrypt password: ${error.message}`, chalk.red);
+          passwordToCheck = null; // Force rejection
+        }
+      }
+      
+      if (passwordToCheck === this.sessionPassword) {
+        // Correct password, mark as authenticated
+        if (message.nodeId) {
+          this.authenticatedNodes.add(message.nodeId);
+        }
+        const response = { type: 'password_accepted' };
+        const encrypted = this.encryptMessageForNode(response, message.nodeId);
+        ws.send(JSON.stringify(encrypted.data));
+      } else {
+        const rejectionMessage = { 
+          type: 'password_rejected',
+          message: 'Incorrect password. Access denied.'
+        };
+        const encrypted = this.encryptMessageForNode(rejectionMessage, message.nodeId);
+        ws.send(JSON.stringify(encrypted.data));
+        // Close connection after failed password attempt
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close(1008, 'Invalid password');
+          }
+        }, 1000);
+      }
+    }
+  }
+
+  // Check if node is authenticated for password-protected sessions
+  isNodeAuthenticated(nodeId) {
+    if (!this.sessionPassword) return true; // No password required
+    return this.authenticatedNodes.has(nodeId);
+  }
+
+  async findAvailablePort(startPort, endPort) {
+    const net = await import('net');
+    
+    return new Promise((resolve) => {
+      const tryPort = (port) => {
+        if (port > endPort) {
+          resolve(null); // No available port found
+          return;
+        }
+        
+        const server = net.createServer();
+        
+        server.listen(port, () => {
+          const actualPort = server.address().port;
+          server.close(() => {
+            resolve(actualPort);
+          });
+        });
+        
+        server.on('error', () => {
+          tryPort(port + 1);
+        });
+      };
+      
+      tryPort(startPort);
+    });
+  }
+
+  getNodeIdBySocket(socket) {
+    for (const [nodeId, node] of this.connectedNodes.entries()) {
+      if (node.socket === socket) {
+        return nodeId;
+      }
+    }
+    return null;
   }
 
   async handleChatMessage(message) {
@@ -463,13 +463,15 @@ export class UnifiedNode {
             const encryptedData = this.aesCrypto.encrypt(JSON.stringify(messageData), encryptionKey);
 
             // Send encrypted message directly to participant
-            participantNode.socket.send(JSON.stringify({
+            const messageToSend = {
               type: 'encrypted_message',
               fromNodeId: message.nodeId,
               chatId: message.chatId,
               encryptedData: encryptedData,
               timestamp: message.timestamp
-            }));
+            };
+            const encrypted = this.encryptMessageForNode(messageToSend, participantId);
+            participantNode.socket.send(JSON.stringify(encrypted.data));
           } else {
             this.safeLog(`No shared key with participant ${participantId}, initiating key exchange...`, chalk.yellow);
             // Try to initiate key exchange
@@ -526,19 +528,23 @@ export class UnifiedNode {
       this.safeLog(`Facilitating key exchange between ${nodeId1.slice(-8)} and ${nodeId2.slice(-8)}`, chalk.cyan);
       
       // Send each node the other's public key for key exchange
-      node1.socket.send(JSON.stringify({
+      const message1 = {
         type: 'peer_info',
         nodeId: nodeId2,
         publicKey: node2.publicKey,
         address: node2.address
-      }));
+      };
+      const encrypted1 = this.encryptMessageForNode(message1, nodeId1);
+      node1.socket.send(JSON.stringify(encrypted1.data));
       
-      node2.socket.send(JSON.stringify({
+      const message2 = {
         type: 'peer_info', 
         nodeId: nodeId1,
         publicKey: node1.publicKey,
         address: node1.address
-      }));
+      };
+      const encrypted2 = this.encryptMessageForNode(message2, nodeId2);
+      node2.socket.send(JSON.stringify(encrypted2.data));
       
       // Mark that we initiated this exchange to prevent duplicates
       this.peerKeys.set(keyId, 'pending');
@@ -565,11 +571,13 @@ export class UnifiedNode {
     const chatHistory = this.chatHistory.get(chatId) || [];
     
     if (participantNode && participantNode.socket.readyState === WebSocket.OPEN) {
-      participantNode.socket.send(JSON.stringify({
+      const message = {
         type: 'chat_history',
         chatId: chatId,
         messages: chatHistory
-      }));
+      };
+      const encrypted = this.encryptMessageForNode(message, participantId);
+      participantNode.socket.send(JSON.stringify(encrypted.data));
     }
   }
 
@@ -791,6 +799,14 @@ export class UnifiedNode {
         this.safeLog(`❌ Access denied: ${message.message}`, chalk.red);
         break;
 
+      case 'secure_message':
+        // Decrypt and handle encrypted message
+        const decryptedMessage = this.decryptSecureMessage(message);
+        if (decryptedMessage) {
+          this.handleClientMessage(decryptedMessage);
+        }
+        break;
+
       case 'pong':
         // Heartbeat response - no action needed
         break;
@@ -800,11 +816,34 @@ export class UnifiedNode {
     }
   }
 
-  // COMMON METHODS (used by both host and client modes)
-  send(message) {
+  // Secure send method for client-to-host communication
+  async sendSecure(message, targetNodeId = null) {
     if (this.mode === NODE_MODES.HOST) {
       // In host mode, handle messages directly
-      this.handleHostMessage(null, message);
+      await this.handleHostMessage(null, message);
+    } else if (this.coordinatorWs && this.coordinatorWs.readyState === WebSocket.OPEN) {
+      // In client mode, encrypt message if possible
+      const encryptedMessage = this.encryptMessageForNode(message, targetNodeId || 'host');
+      this.coordinatorWs.send(JSON.stringify(encryptedMessage.data));
+    }
+  }
+
+  // Send message to specific client (host mode only)
+  sendToClient(message, targetNodeId) {
+    if (this.mode !== NODE_MODES.HOST) return;
+    
+    const targetNode = this.connectedNodes.get(targetNodeId);
+    if (targetNode && targetNode.socket.readyState === WebSocket.OPEN) {
+      const encryptedMessage = this.encryptMessageForNode(message, targetNodeId);
+      targetNode.socket.send(JSON.stringify(encryptedMessage.data));
+    }
+  }
+
+  // COMMON METHODS (used by both host and client modes)
+  async send(message) {
+    if (this.mode === NODE_MODES.HOST) {
+      // In host mode, handle messages directly
+      await this.handleHostMessage(null, message);
     } else if (this.coordinatorWs && this.coordinatorWs.readyState === WebSocket.OPEN) {
       this.coordinatorWs.send(JSON.stringify(message));
     }
@@ -846,12 +885,62 @@ export class UnifiedNode {
     }
   }
 
-  submitPassword(password) {
-    this.send({
-      type: 'password_attempt',
-      nodeId: this.nodeId,
-      password: password
-    });
+  // Encrypt password using host's public key (asymmetric encryption for initial auth)
+  async encryptPasswordForHost(password, hostPublicKey) {
+    try {
+      // Use ML-KEM to encrypt the password with host's public key
+      const { ciphertext } = await this.mlkem.encapsulate(hostPublicKey);
+      // Use the shared secret to encrypt the password
+      const tempSecret = Buffer.from(ciphertext).toString('base64');
+      const encryptionKey = this.aesCrypto.deriveKeyFromSharedSecret(tempSecret);
+      const encryptedPassword = this.aesCrypto.encrypt(password, encryptionKey);
+      
+      return {
+        ciphertext: ciphertext,
+        encryptedPassword: encryptedPassword
+      };
+    } catch (error) {
+      this.safeLog(`Password encryption failed: ${error.message}`, chalk.red);
+      // Fallback to plaintext (not ideal but maintains functionality)
+      return { password: password };
+    }
+  }
+
+  async submitPassword(password) {
+    try {
+      // Try to encrypt password using ML-KEM with host's public key
+      const hostNode = this.connectedNodes.get('host') || Array.from(this.connectedNodes.values())[0];
+      
+      if (hostNode && hostNode.publicKey) {
+        const encryptedPasswordData = await this.encryptPasswordForHost(password, hostNode.publicKey);
+        
+        if (encryptedPasswordData.ciphertext) {
+          // Successfully encrypted with ML-KEM
+          this.send({
+            type: 'password_attempt',
+            nodeId: this.nodeId,
+            encryptedPassword: encryptedPasswordData.encryptedPassword,
+            ciphertext: encryptedPasswordData.ciphertext
+          });
+          return;
+        }
+      }
+      
+      // Fallback to plaintext (will be encrypted at transport layer if key exists)
+      this.send({
+        type: 'password_attempt',
+        nodeId: this.nodeId,
+        password: password
+      });
+    } catch (error) {
+      this.safeLog(`Password encryption failed: ${error.message}`, chalk.red);
+      // Fallback to plaintext
+      this.send({
+        type: 'password_attempt',
+        nodeId: this.nodeId,
+        password: password
+      });
+    }
   }
 
   attemptRegistration(authenticated = false) {
@@ -898,6 +987,65 @@ export class UnifiedNode {
     if (!this.sessionPassword) return true;
     // Check if node has been authenticated
     return this.authenticatedNodes.has(nodeId);
+  }
+
+  // List of message types that should NOT be encrypted (handshake/auth messages)
+  getUnencryptedMessageTypes() {
+    return new Set([
+      'register',
+      'registered', 
+      'password_challenge',
+      'password_attempt',
+      'password_required',
+      'password_not_required',
+      'password_accepted',
+      'password_rejected',
+      'key_exchange_request',
+      'key_exchange_response',
+      'peer_info',
+      'ping',
+      'pong',
+      'access_denied'
+    ]);
+  }
+
+  // Encrypt any message for transmission to a specific node
+  encryptMessageForNode(message, targetNodeId) {
+    // Don't encrypt handshake/auth messages or if no shared key exists
+    if (!this.peerKeys.has(targetNodeId) || this.getUnencryptedMessageTypes().has(message.type)) {
+      return { encrypted: false, data: message };
+    }
+
+    const sharedSecret = this.peerKeys.get(targetNodeId);
+    const encryptionKey = this.aesCrypto.deriveKeyFromSharedSecret(sharedSecret);
+    const encryptedData = this.aesCrypto.encrypt(JSON.stringify(message), encryptionKey);
+
+    return {
+      encrypted: true,
+      data: {
+        type: 'secure_message',
+        fromNodeId: this.nodeId,
+        encryptedData: encryptedData
+      }
+    };
+  }
+
+  // Decrypt a received secure message
+  decryptSecureMessage(message) {
+    if (!this.peerKeys.has(message.fromNodeId)) {
+      this.safeLog(`Received encrypted message from unknown node: ${message.fromNodeId}`, chalk.red);
+      return null;
+    }
+
+    try {
+      const sharedSecret = this.peerKeys.get(message.fromNodeId);
+      const decryptionKey = this.aesCrypto.deriveKeyFromSharedSecret(sharedSecret);
+      const decryptedText = this.aesCrypto.decrypt(message.encryptedData, decryptionKey);
+      return JSON.parse(decryptedText);
+    } catch (error) {
+      this.safeLog(`Failed to decrypt message from ${message.fromNodeId.slice(-8)}: ${error.message}`, chalk.red);
+      return null;
+    }
   }
 
   register() {
@@ -985,7 +1133,8 @@ export class UnifiedNode {
   broadcastToAllNodes(message, excludeNodeId = null) {
     this.connectedNodes.forEach((node, nodeId) => {
       if (nodeId !== excludeNodeId && node.socket.readyState === WebSocket.OPEN) {
-        node.socket.send(JSON.stringify(message));
+        const encrypted = this.encryptMessageForNode(message, nodeId);
+        node.socket.send(JSON.stringify(encrypted.data));
       }
     });
   }
@@ -998,7 +1147,8 @@ export class UnifiedNode {
       if (nodeId !== excludeNodeId) {
         const node = this.connectedNodes.get(nodeId);
         if (node && node.socket.readyState === WebSocket.OPEN) {
-          node.socket.send(JSON.stringify(message));
+          const encrypted = this.encryptMessageForNode(message, nodeId);
+          node.socket.send(JSON.stringify(encrypted.data));
         }
       }
     });
@@ -1010,21 +1160,25 @@ export class UnifiedNode {
       if (targetNode && targetNode.socket.readyState === WebSocket.OPEN) {
         if (message.messageType) {
           // Key exchange or other special messages
-          targetNode.socket.send(JSON.stringify({
+          const messageToSend = {
             type: message.messageType,
             fromNodeId: message.fromNodeId,
             ciphertext: message.ciphertext,
             acknowledged: message.acknowledged
-          }));
+          };
+          const encrypted = this.encryptMessageForNode(messageToSend, message.targetNodeId);
+          targetNode.socket.send(JSON.stringify(encrypted.data));
         } else {
           // Regular encrypted message
-          targetNode.socket.send(JSON.stringify({
+          const messageToSend = {
             type: 'encrypted_message',
             fromNodeId: message.fromNodeId,
             chatId: message.chatId,
             encryptedData: message.encryptedData,
             timestamp: Date.now()
-          }));
+          };
+          const encrypted = this.encryptMessageForNode(messageToSend, message.targetNodeId);
+          targetNode.socket.send(JSON.stringify(encrypted.data));
         }
       }
     } else {

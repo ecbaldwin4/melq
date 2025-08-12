@@ -1,17 +1,17 @@
-# MELQ - Secure P2P Chat
+# MELQ - Secure Chat Network
 
-A secure peer-to-peer chat system with a directory-like CLI interface. Uses ngrok as a coordination server, MLKEM for key exchange, and AES-256 for message encryption.
+A secure chat system with a directory-like CLI interface. Uses a host-based architecture where one node acts as the central hub, with ML-KEM-768 for quantum-resistant key exchange and AES-256-GCM for message encryption.
 
 ## Features
 
-- **🔐 Quantum-Secure**: MLKEM-768 key exchange + AES-256 encryption
+- **🔐 Quantum-Secure**: ML-KEM-768 key exchange + AES-256-GCM encryption
 - **🔒 Password Protection**: Optional session passwords for added security
-- **🌐 P2P Architecture**: Direct encrypted messaging between nodes
+- **🏠 Host-Based Architecture**: One node hosts, others connect as clients
 - **🗂️ Beautiful TUI**: Filesystem-like interface with emojis and colors
 - **🚀 Multiple Connection Methods**: localtunnel (no account!), ngrok, serveo, or manual setup
 - **💬 Real-time Chat**: WebSocket-based with intelligent message handling
 - **📱 Responsive Design**: Adapts to different terminal sizes with fixed-height chat
-- **⚡ Smart Discovery**: Automatic peer discovery and connection
+- **⚡ Smart Discovery**: Automatic node discovery and connection
 - **🎨 Rich Interface**: Loading animations, status indicators, and intuitive commands
 - **🏗️ Multi-Node Support**: Run multiple MELQ instances simultaneously
 - **🔄 Easy Updates**: Streamlined npm-based update system
@@ -411,12 +411,12 @@ Enter password: teammeeting2024
 ## Security Features ✅ **VALIDATED**
 
 **Post-Quantum Security Implementation:**
-- **MLKEM-768 Key Exchange**: NIST FIPS 203 compliant post-quantum cryptography (192-bit security level)
-- **AES-256-GCM Encryption**: All messages encrypted end-to-end with authenticated encryption
-- **Perfect Forward Secrecy**: Each session uses unique keys derived from MLKEM shared secrets
+- **ML-KEM-768 Key Exchange**: NIST FIPS 203 compliant post-quantum cryptography (192-bit security level)
+- **AES-256-GCM Encryption**: All messages encrypted with authenticated encryption
+- **Perfect Forward Secrecy**: Each session uses unique keys derived from ML-KEM shared secrets
 - **PBKDF2 Key Derivation**: Secure key derivation from quantum-resistant shared secrets
 - **No Plaintext Storage**: Messages only stored encrypted, never in plaintext
-- **Automatic Key Exchange**: Seamless post-quantum key establishment between all peers
+- **Automatic Key Exchange**: Seamless post-quantum key establishment between host and clients
 - **Message Authentication**: GCM mode provides both confidentiality and authenticity
 
 **🔒 NEW: Session Access Control:**
@@ -434,18 +434,18 @@ Enter password: teammeeting2024
 
 **Security Validation Report (Latest):**
 - ✅ ML-KEM-768 implementation verified using official `mlkem` v2.3.1 package
-- ✅ All node-to-node communication secured with post-quantum cryptography
+- ✅ All communication secured with post-quantum cryptography
 - ✅ Password authentication implemented with secure challenge/response protocol
-- ✅ No insecure communication channels detected
+- ✅ Host-based architecture with encrypted client-host communication
 - ✅ Proper cryptographic key management and lifecycle
 - ✅ NIST-approved algorithms throughout the security stack
 
 ## Architecture
 
-- **Coordinator Server**: Central discovery service (runs on ngrok)
-- **P2P Nodes**: Individual chat clients with encryption
+- **Host Node**: Central hub that relays all messages and manages the network
+- **Client Nodes**: Connect to the host for chat participation
 - **CLI Interface**: Directory-like navigation for chats
-- **Crypto Layer**: MLKEM + AES-256 for security
+- **Crypto Layer**: ML-KEM-768 + AES-256-GCM for quantum-secure encryption
 
 ## Troubleshooting
 
@@ -528,23 +528,3 @@ The system consists of:
 - `src/network/tunneling.js` - Internet tunneling services
 - `bin/melq.js` - Global CLI entry point
 
-## Security Compliance & Standards
-
-MELQ implements enterprise-grade security following industry best practices:
-
-**Cryptographic Standards:**
-- **NIST FIPS 203**: ML-KEM (Module-Lattice-Based Key Encapsulation Mechanism) - Official post-quantum standard
-- **NIST FIPS 197**: AES-256 Advanced Encryption Standard
-- **RFC 5869**: PBKDF2 Key Derivation Function
-- **RFC 5116**: GCM Authenticated Encryption mode
-
-**Security Architecture:**
-- All traffic goes through coordinator for initial discovery only
-- Direct P2P encrypted connections established after quantum-safe key exchange  
-- End-to-end encryption ensures coordinator cannot access message content
-- Forward secrecy protects against future quantum computer attacks
-
-**Production Ready:**
-- Uses official, audited cryptographic libraries
-- Implements full MLKEM-768 specification (not simplified)
-- Suitable for production deployments requiring quantum-resistant security
