@@ -17,6 +17,12 @@ const NODE_MODES = {
 export class UnifiedNode {
   constructor() {
     this.nodeId = this.generateNodeId();
+    
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled Promise Rejection:', reason);
+      this.safeLog(`Unhandled promise rejection: ${reason}`, chalk.red);
+    });
     this.mode = null;
     this.mlkem = new MLKEM();
     this.aesCrypto = new AESCrypto();
@@ -186,7 +192,20 @@ export class UnifiedNode {
         const message = JSON.parse(data.toString());
         await this.handleHostMessage(ws, message);
       } catch (error) {
-        this.safeLog(`Invalid message: ${error.message}`, chalk.red);
+        console.error('WebSocket message handling error:', error);
+        this.safeLog(`Message handling error: ${error.message}`, chalk.red);
+        
+        // Try to send error response if possible
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Message processing failed'
+            }));
+          }
+        } catch (sendError) {
+          // Ignore send errors - connection might be broken
+        }
       }
     });
 
@@ -229,7 +248,12 @@ export class UnifiedNode {
       case 'password_attempt':
         // Client is attempting password authentication
         if (ws) {
-          await this.handlePasswordAttempt(ws, message);
+          try {
+            await this.handlePasswordAttempt(ws, message);
+          } catch (error) {
+            console.error('Password attempt error:', error);
+            this.safeLog(`Password authentication error: ${error.message}`, chalk.red);
+          }
         }
         break;
 
@@ -256,9 +280,14 @@ export class UnifiedNode {
 
       case 'secure_message':
         // Decrypt and handle encrypted message
-        const decryptedMessage = this.decryptSecureMessage(message);
-        if (decryptedMessage) {
-          await this.handleHostMessage(ws, decryptedMessage);
+        try {
+          const decryptedMessage = this.decryptSecureMessage(message);
+          if (decryptedMessage) {
+            await this.handleHostMessage(ws, decryptedMessage);
+          }
+        } catch (error) {
+          console.error('Secure message handling error:', error);
+          this.safeLog(`Failed to handle secure message: ${error.message}`, chalk.red);
         }
         break;
 
@@ -415,7 +444,12 @@ export class UnifiedNode {
           return;
         }
 
-        this.handleChatMessage(message);
+        try {
+          await this.handleChatMessage(message);
+        } catch (error) {
+          console.error('Chat message handling error:', error);
+          this.safeLog(`Failed to handle chat message: ${error.message}`, chalk.red);
+        }
         break;
 
       case 'relay_message':
