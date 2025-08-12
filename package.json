@@ -1,7 +1,7 @@
 {
   "name": "melq",
   "version": "1.0.0",
-  "description": "Quantum-secure P2P chat - Host or join networks easily",
+  "description": "Quantum-secure chat network with ML-KEM-768 encryption and host-based architecture",
   "main": "src/index.js",
   "type": "module",
   "bin": {
@@ -29,14 +29,36 @@
     "node-domexception": "^2.0.2"
   },
   "keywords": [
-    "p2p",
     "chat",
     "encryption",
     "quantum-secure",
+    "ml-kem",
     "mlkem",
-    "local-discovery",
-    "unified-node"
+    "post-quantum",
+    "secure-chat",
+    "cli",
+    "network",
+    "terminal",
+    "websocket",
+    "aes-256-gcm"
   ],
-  "author": "",
-  "license": "MIT"
+  "author": "MELQ Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ecbaldwin4/melq.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ecbaldwin4/melq/issues"
+  },
+  "homepage": "https://github.com/ecbaldwin4/melq#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "src/",
+    "bin/",
+    "README.md",
+    "package.json"
+  ]
 }
