@@ -322,6 +322,106 @@ export class UnifiedNode {
         }
         break;
 
+      case 'create_chat':
+        // Check authentication for password-protected sessions
+        if (!this.isNodeAuthenticated(message.nodeId)) {
+          if (ws) {
+            const denialMessage = { 
+              type: 'access_denied', 
+              message: 'Authentication required' 
+            };
+            const encrypted = this.encryptMessageForNode(denialMessage, message.nodeId);
+            ws.send(JSON.stringify(encrypted.data));
+          }
+          return;
+        }
+
+        const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.chatRooms.set(chatId, {
+          creator: message.nodeId,
+          name: message.chatName,
+          participants: [message.nodeId],
+          created: Date.now()
+        });
+        
+        // Add to local chats
+        this.chats.set(chatId, {
+          id: chatId,
+          name: message.chatName,
+          participants: [message.nodeId]
+        });
+        
+        if (ws) {
+          const response = { type: 'chat_created', chatId, chatName: message.chatName };
+          const encrypted = this.encryptMessageForNode(response, message.nodeId);
+          ws.send(JSON.stringify(encrypted.data));
+          this.broadcastToAllNodes({ 
+            type: 'chat_available', 
+            chatId, 
+            chatName: message.chatName, 
+            creator: message.nodeId 
+          }, message.nodeId);
+        } else {
+          // Internal call - notify CLI directly
+          this.safeLog(`Chat created: ${message.chatName} (ID: ${chatId})`, chalk.yellow);
+          if (this.cliInterface) this.cliInterface.rl.prompt();
+        }
+        break;
+
+      case 'join_chat':
+        // Check authentication for password-protected sessions
+        if (!this.isNodeAuthenticated(message.nodeId)) {
+          if (ws) {
+            const denialMessage = { 
+              type: 'access_denied', 
+              message: 'Authentication required' 
+            };
+            const encrypted = this.encryptMessageForNode(denialMessage, message.nodeId);
+            ws.send(JSON.stringify(encrypted.data));
+          }
+          return;
+        }
+
+        const chat = this.chatRooms.get(message.chatId);
+        if (chat && !chat.participants.includes(message.nodeId)) {
+          chat.participants.push(message.nodeId);
+          
+          // Send chat history to the new participant
+          this.sendChatHistoryToParticipant(message.nodeId, message.chatId);
+          
+          // Notify other participants
+          this.broadcastToChatParticipants(message.chatId, {
+            type: 'user_joined',
+            chatId: message.chatId,
+            nodeId: message.nodeId
+          }, message.nodeId);
+          
+          // Ensure the new participant can communicate with existing participants
+          this.ensureKeyExchangesForNewParticipant(message.chatId, message.nodeId);
+        }
+        break;
+
+      case 'send_chat_message':
+        // Check authentication for password-protected sessions
+        if (!this.isNodeAuthenticated(message.nodeId)) {
+          if (ws) {
+            const denialMessage = { 
+              type: 'access_denied', 
+              message: 'Authentication required' 
+            };
+            const encrypted = this.encryptMessageForNode(denialMessage, message.nodeId);
+            ws.send(JSON.stringify(encrypted.data));
+          }
+          return;
+        }
+
+        this.handleChatMessage(message);
+        break;
+
+      case 'relay_message':
+        this.relayEncryptedMessage(message);
+        break;
+
       case 'ping':
         const pongResponse = { type: 'pong' };
         const encryptedPong = this.encryptMessageForNode(pongResponse, message.fromNodeId);
