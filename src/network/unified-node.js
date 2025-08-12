@@ -212,15 +212,15 @@ export class UnifiedNode {
         // Client is requesting password challenge
         if (ws) {
           if (this.sessionPassword) {
-            const message = { 
+            const response = { 
               type: 'password_required',
               message: 'This session is password protected. Please enter the password.'
             };
-            const encrypted = this.encryptMessageForNode(message, clientNodeId || 'unknown');
+            const encrypted = this.encryptMessageForNode(response, message.nodeId);
             ws.send(JSON.stringify(encrypted.data));
           } else {
-            const message = { type: 'password_not_required' };
-            const encrypted = this.encryptMessageForNode(message, clientNodeId || 'unknown');
+            const response = { type: 'password_not_required' };
+            const encrypted = this.encryptMessageForNode(response, message.nodeId);
             ws.send(JSON.stringify(encrypted.data));
           }
         }
