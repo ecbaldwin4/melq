@@ -9,6 +9,18 @@ npm install -g melq
 melq
 ```
 
+**If you get permission errors on Linux/macOS:**
+```bash
+# Option 1: Use sudo (quick fix)
+sudo npm install -g melq
+
+# Option 2: Fix npm permissions (recommended)
+npm config set prefix ~/.local
+echo 'export PATH=~/.local/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+npm install -g melq
+```
+
 ## Quick Start
 
 ### Host a Chat Network
@@ -187,16 +199,24 @@ cd melq && npm install && npm link
 
 ## Troubleshooting
 
-**Command not found after installation:**
+**Permission denied (EACCES) during installation:**
 ```bash
-# Restart terminal, then:
+# Quick fix:
+sudo npm install -g melq
+
+# Better fix (prevents future issues):
+npm config set prefix ~/.local
+echo 'export PATH=~/.local/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
 npm install -g melq
 ```
 
-**Permission errors:**
+**Command not found after installation:**
 ```bash
-# On macOS/Linux:
-sudo npm install -g melq
+# Restart terminal, then try running:
+melq
+# If still not found:
+echo $PATH  # Check if npm global bin is in PATH
 ```
 
 **Connection issues:**
