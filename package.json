@@ -1,6 +1,6 @@
 {
   "name": "melq",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Quantum-secure chat network with ML-KEM-768 encryption and host-based architecture",
   "main": "src/index.js",
   "type": "module",
