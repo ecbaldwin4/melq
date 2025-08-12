@@ -27,7 +27,7 @@ if exist "src\index.js" (
 
 echo What this installer will do:
 echo.
-echo   * Check if Node.js is installed ^(install if needed^)
+echo   * Check if Node.js and npm are installed ^(install if needed^)
 echo   * Download MELQ source code
 echo   * Install dependencies
 echo   * Set up global 'melq' command
@@ -124,6 +124,80 @@ if %MAJOR_VERSION% LSS 16 (
 )
 
 echo [OK] Node.js %NODE_VERSION_FULL% found
+
+REM Check for npm separately (sometimes npm is missing even with Node.js)
+npm --version >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo [X] npm is not installed!
+    echo npm ^(Node Package Manager^) is required to install MELQ dependencies.
+    echo.
+    echo AUTOMATED npm INSTALLATION ATTEMPT:
+    echo Trying to install npm automatically...
+    echo.
+    
+    REM Try winget first
+    winget install npm --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
+    if not errorlevel 1 (
+        echo [OK] npm installed successfully via winget!
+        echo Please restart this installer to continue.
+        echo.
+        echo Exiting to allow npm installation to complete...
+        exit /b 0
+    )
+    
+    echo Winget npm installation failed. Trying chocolatey...
+    echo.
+    
+    REM Try chocolatey if available
+    choco --version >nul 2>&1
+    if not errorlevel 1 (
+        echo Installing npm via Chocolatey...
+        choco install npm -y
+        if not errorlevel 1 (
+            echo [OK] npm installed successfully via Chocolatey!
+            echo Please restart this installer to continue.
+            echo.
+            echo Exiting to allow npm installation to complete...
+            exit /b 0
+        )
+    )
+    
+    echo.
+    echo Chocolatey npm installation failed. Trying Node.js reinstall...
+    echo.
+    echo This will reinstall Node.js with npm included...
+    
+    REM Try reinstalling Node.js (which includes npm)
+    winget install OpenJS.NodeJS --force --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
+    if not errorlevel 1 (
+        echo [OK] Node.js reinstalled with npm included!
+        echo Please restart this installer to continue.
+        echo.
+        echo Exiting to allow Node.js reinstallation to complete...
+        exit /b 0
+    )
+    
+    echo.
+    echo OPENING NODE.JS DOWNLOAD PAGE:
+    echo All automated npm installation attempts failed.
+    echo.
+    echo Opening Node.js download page automatically...
+    echo Please download the LTS version and run the installer.
+    echo ^(Node.js includes npm^)
+    echo After installation, restart this installer.
+    echo.
+    start https://nodejs.org/
+    echo.
+    echo The installer will exit so you can install Node.js with npm.
+    echo Run this installer again after Node.js is installed.
+    echo.
+    echo Exiting for Node.js/npm installation...
+    exit /b 1
+)
+
+for /f "tokens=*" %%i in ('npm --version') do set "NPM_VERSION=%%i"
+echo [OK] npm %NPM_VERSION% found
 echo.
 
 REM Check for git

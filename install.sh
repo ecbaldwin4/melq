@@ -36,7 +36,7 @@ if [ -f "src/index.js" ]; then
 fi
 
 echo "What this installer will do:"
-echo "• Check if Node.js and Git are installed"
+echo "• Check if Node.js, npm, and Git are installed"
 echo "• Download MELQ source code" 
 echo "• Install dependencies"
 echo "• Set up global 'melq' command"
@@ -210,6 +210,121 @@ if [ "$MAJOR_VERSION" -lt "16" ]; then
 fi
 
 echo "✅ Node.js $(node --version) found"
+
+# Check for npm separately (sometimes npm is missing even with Node.js)
+if ! command -v npm &> /dev/null; then
+    echo
+    echo "❌ npm is not installed!"
+    echo "npm (Node Package Manager) is required to install MELQ dependencies."
+    echo
+    install_npm=$(interactive_prompt "Would you like to install npm? (Y/n): " "y")
+    
+    if [[ $install_npm =~ ^[Yy]$ ]]; then
+        echo
+        echo "🔄 Installing npm..."
+        echo
+        
+        # Try different methods based on OS
+        npm_installed=false
+        
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS - try homebrew or use existing Node.js
+            if command -v brew &> /dev/null; then
+                echo "📦 Installing npm via Homebrew..."
+                if brew install npm; then
+                    echo "✅ npm installed successfully via Homebrew!"
+                    npm_installed=true
+                fi
+            fi
+            
+            if [ "$npm_installed" = false ]; then
+                # Try reinstalling Node.js with npm included
+                echo "📦 Reinstalling Node.js with npm included..."
+                if command -v nvm &> /dev/null; then
+                    nvm reinstall-packages $(nvm current)
+                    npm_installed=true
+                fi
+            fi
+        elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            # Linux - detect package manager and install npm
+            if command -v apt-get &> /dev/null; then
+                echo "📦 Installing npm via apt..."
+                if sudo apt update && sudo apt install -y npm; then
+                    echo "✅ npm installed successfully via apt!"
+                    npm_installed=true
+                fi
+            elif command -v yum &> /dev/null; then
+                echo "📦 Installing npm via yum..."
+                if sudo yum install -y npm; then
+                    echo "✅ npm installed successfully via yum!"
+                    npm_installed=true
+                fi
+            elif command -v dnf &> /dev/null; then
+                echo "📦 Installing npm via dnf..."
+                if sudo dnf install -y npm; then
+                    echo "✅ npm installed successfully via dnf!"
+                    npm_installed=true
+                fi
+            elif command -v pacman &> /dev/null; then
+                echo "📦 Installing npm via pacman..."
+                if sudo pacman -S --noconfirm npm; then
+                    echo "✅ npm installed successfully via pacman!"
+                    npm_installed=true
+                fi
+            fi
+        fi
+        
+        # Fallback: try to reinstall Node.js with npm using nvm
+        if [ "$npm_installed" = false ] && command -v nvm &> /dev/null; then
+            echo "📦 Trying to reinstall Node.js with npm via nvm..."
+            nvm install --reinstall-packages-from=current node
+            if command -v npm &> /dev/null; then
+                echo "✅ npm is now available!"
+                npm_installed=true
+            fi
+        fi
+        
+        if [ "$npm_installed" = false ]; then
+            echo "❌ npm installation failed!"
+            echo
+            echo "Manual installation options:"
+            echo "1. Reinstall Node.js from https://nodejs.org/ (includes npm)"
+            echo "2. Or install npm separately:"
+            
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                echo "   • macOS: brew install npm"
+            elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                if command -v apt &> /dev/null; then
+                    echo "   • Ubuntu/Debian: sudo apt install npm"
+                elif command -v yum &> /dev/null; then
+                    echo "   • CentOS/RHEL: sudo yum install npm"
+                elif command -v pacman &> /dev/null; then
+                    echo "   • Arch: sudo pacman -S npm"
+                fi
+            fi
+            echo
+            echo "After installing npm, run this installer again."
+            exit 1
+        fi
+        
+        echo
+        echo "✅ npm installation complete!"
+        npm -v
+        echo
+    else
+        echo
+        echo "npm is required to install MELQ dependencies."
+        echo "Please install npm manually:"
+        echo
+        echo "1. Reinstall Node.js from https://nodejs.org/ (recommended - includes npm)"
+        echo "2. Or install npm separately using your package manager"
+        echo
+        echo "After installing npm, run this installer again."
+        exit 1
+    fi
+fi
+
+echo "✅ npm $(npm --version) found"
 
 # Check for git
 if ! command -v git &> /dev/null; then
